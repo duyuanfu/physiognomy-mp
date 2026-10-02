@@ -1,0 +1,167 @@
+/* ==========================================================================
+   FACIAL ARCHITECTURE // 微信小程序专属高精度样式与设计令牌
+   极简大气 · 纯净明亮 · 微信环境 100% 像素级对齐修复
+   ========================================================================== */
+
+/* 微信小程序中 CSS 变量必须挂载在 page 上，不能仅写 :root */
+page, :root {
+  /* 明亮纯净基础底色 */
+  --bg-page: #FBFBFC;
+  --bg-card: #FFFFFF;
+  --bg-card-subtle: #F6F7F9;
+  --bg-hover: #F1F3F6;
+
+  /* 极简高雅边框 */
+  --border-light: #EAECEF;
+  --border-medium: #D1D5DB;
+  --border-focus: #B89058;
+
+  /* 文字对比层级 (WCAG AAA 级高对比) */
+  --text-main: #111827;       /* 深邃墨黑，字字分明 */
+  --text-secondary: #4B5563;  /* 优雅铅灰正文 */
+  --text-caption: #6B7280;    /* 辅助元数据 */
+  --text-disabled: #9CA3AF;
+
+  /* 高定香槟哑光金与理性深青 */
+  --accent-gold: #B89058;
+  --accent-gold-dark: #967032;
+  --accent-gold-gradient: linear-gradient(135deg, #C5A059 0%, #A37936 100%);
+  --accent-gold-bg: #FDF9F2;
+  --accent-gold-border: #F3E4C9;
+
+  --accent-teal: #1F5B6A;
+  --accent-teal-bg: #F0F7F9;
+
+  /* 空气感微影与圆角 */
+  --shadow-sm: 0 4rpx 12rpx rgba(0, 0, 0, 0.03);
+  --shadow-card: 0 8rpx 32rpx rgba(0, 0, 0, 0.04);
+  --shadow-float: 0 16rpx 48rpx rgba(184, 144, 88, 0.15);
+
+  --radius-xs: 6rpx;
+  --radius-sm: 12rpx;
+  --radius-md: 20rpx;
+  --radius-full: 9999rpx;
+}
+
+/* 全局重置：解决微信小程序默认盒模型变形问题 */
+view, text, image, button, input, textarea, canvas {
+  box-sizing: border-box;
+}
+
+/* 彻底重置微信小程序 button 默认灰色边框与膨胀内边距 */
+button {
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  line-height: normal;
+  font-size: inherit;
+  color: inherit;
+  overflow: visible;
+}
+
+button::after {
+  border: none;
+  display: none;
+}
+
+/* 彻底屏蔽 DCloud 默认注入的失效预加载阴影图片，消除 net::ERR_CONNECTION_CLOSED 错误 */
+page::after {
+  display: none !important;
+  content: none !important;
+  animation: none !important;
+  background-image: none !important;
+}
+
+page {
+  background-color: #FBFBFC;
+  color: #111827;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  min-height: 100%;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 高智感等宽字体 */
+.mono-font {
+  font-family: "Space Mono", "DIN Alternate", "Courier New", monospace;
+  letter-spacing: 0.03em;
+}
+
+/* 典雅大标题 */
+.arch-heading {
+  color: #111827;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+/* 纯白质感卡片 */
+.arch-card {
+  background: #FFFFFF;
+  border: 1px solid #EAECEF;
+  border-radius: 12rpx;
+  padding: 32rpx;
+  box-shadow: 0 8rpx 32rpx rgba(0, 0, 0, 0.04);
+  width: 100%;
+}
+
+/* 极简徽标胶囊 */
+.arch-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 8rpx 20rpx;
+  font-size: 24rpx;
+  color: #4B5563;
+  background: #F6F7F9;
+  border: 1px solid #EAECEF;
+  border-radius: 9999rpx;
+  letter-spacing: 0.02em;
+}
+
+/* 高定香槟金主行动按钮 */
+.arch-btn-primary {
+  background: linear-gradient(135deg, #C5A059 0%, #A37936 100%);
+  color: #FFFFFF !important;
+  font-weight: 600;
+  font-size: 30rpx;
+  letter-spacing: 0.06em;
+  border-radius: 9999rpx;
+  padding: 26rpx 48rpx;
+  text-align: center;
+  border: none;
+  box-shadow: 0 10rpx 30rpx rgba(184, 144, 88, 0.28);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14rpx;
+  width: 100%;
+}
+
+.arch-btn-primary:active {
+  opacity: 0.9;
+}
+
+/* 描边次级按钮 */
+.arch-btn-secondary {
+  background: #FFFFFF;
+  color: #111827 !important;
+  font-size: 30rpx;
+  letter-spacing: 0.04em;
+  font-weight: 500;
+  border-radius: 9999rpx;
+  padding: 24rpx 48rpx;
+  text-align: center;
+  border: 1px solid #D1D5DB;
+  box-shadow: 0 4rpx 12rpx rgba(0, 0, 0, 0.03);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12rpx;
+  width: 100%;
+}
+
+.arch-btn-secondary:active {
+  background: #F6F7F9;
+}
