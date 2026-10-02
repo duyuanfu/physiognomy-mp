@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  xiangdu-api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: xiangdu-backend
+    restart: always
+    ports:
+      - "8000:8000"
+    environment:
+      - PORT=8000
+      - HOST=0.0.0.0
+      - ENV=production
+      # 以下配置可在服务器的 .env 中自定义覆盖
+      - GEMINI_API_KEY=sk-f9ae12d50cca49a78ce1d7241caf6570
+      - GEMINI_BASE_URL=http://host.docker.internal:8045/v1
+      - GEMINI_MODEL=gemini-3.8-flash
+      - PRIMARY_TIMEOUT_SECONDS=30.0
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./backend/data:/app/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3

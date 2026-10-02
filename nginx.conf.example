@@ -1,0 +1,43 @@
+# 微信小程序生产环境 Nginx 反向代理配置示例
+# 请将 yourdomain.com 替换为你的真实备案域名
+
+server {
+    listen 80;
+    server_name api.yourdomain.com;
+    # 强制 HTTP 重定向至 HTTPS
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl http2;
+    server_name api.yourdomain.com;
+
+    # SSL 证书配置 (腾讯云/阿里云免费证书 或 Let's Encrypt 证书路径)
+    ssl_certificate /etc/nginx/ssl/api.yourdomain.com.pem;
+    ssl_certificate_key /etc/nginx/ssl/api.yourdomain.com.key;
+
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers HIGH:!aNULL:!MD5;
+    ssl_prefer_server_ciphers on;
+
+    # ★ 允许上传的最大文件体积 (设为 50M，防止微信上传大照片时报 413 / socket hang up)
+    client_max_body_size 50M;
+
+    location / {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # ★ 大模型推理耗时缓冲 (必须拉长到 75 秒，防止 Nginx 提前切断连接)
+        proxy_connect_timeout 75s;
+        proxy_read_timeout 75s;
+        proxy_send_timeout 75s;
+
+        # 开启缓冲
+        proxy_buffering off;
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+    }
+}
