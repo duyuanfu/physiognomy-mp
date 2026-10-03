@@ -69,6 +69,10 @@ class FaceMeshService:
         p_nasion = get_pt(168)       # 鼻根山根点
         p_nose_tip = get_pt(1)       # 鼻尖准头点
 
+        # 眉峰与眉中
+        p_brow_l = get_pt(296)       # 左眉峰
+        p_brow_r = get_pt(66)        # 右眉峰
+
         # 颧弓与下颌
         p_zygo_r = get_pt(234)       # 右颧弓 (画面左)
         p_zygo_l = get_pt(454)       # 左颧弓 (画面右)
@@ -87,11 +91,13 @@ class FaceMeshService:
         p_alar_r = get_pt(49)        # 右鼻翼
         p_alar_l = get_pt(279)       # 左鼻翼
 
-        # 嘴唇厚度
+        # 嘴唇与嘴角
         p_lip_top = get_pt(0)
         p_lip_mid_up = get_pt(13)
         p_lip_mid_down = get_pt(14)
         p_lip_bottom = get_pt(17)
+        p_lip_l = get_pt(291)        # 左嘴角
+        p_lip_r = get_pt(61)         # 右嘴角
 
         # 2. 姿态角水平校正 (De-roll)
         delta_x = p_l_in[0] - p_r_in[0]
@@ -131,28 +137,24 @@ class FaceMeshService:
         rot_lip_bottom = rotate_point(p_lip_bottom, roll_rad)
 
         # 3. 基础指标计算
-        # A. 面部长宽比
         face_length = abs(rot_menton[1] - rot_trichion[1])
         face_width = np.linalg.norm(rot_zygo_l - rot_zygo_r)
         face_ratio = float(face_length / (face_width + 1e-6))
         face_type = "清冷纵深长面型" if face_ratio > 1.45 else ("亲和丰润阔面型" if face_ratio < 1.30 else "黄金平衡中面型")
 
-        # B. 下颌夹角
         v_l = rot_jaw_l - rot_menton
         v_r = rot_jaw_r - rot_menton
         cos_jaw = np.dot(v_l, v_r) / (np.linalg.norm(v_l) * np.linalg.norm(v_r) + 1e-6)
         jaw_angle = float(np.degrees(np.arccos(np.clip(cos_jaw, -1.0, 1.0))))
         jaw_type = "锐意利落型" if jaw_angle < 85.0 else ("方正基石型" if jaw_angle > 100.0 else "刚柔微折型")
 
-        # C. 外眦上扬角与眼裂长宽比
         eye_length = np.linalg.norm(rot_l_out - rot_l_in)
         eye_height = abs(rot_l_top[1] - rot_l_bottom[1])
         palpebral_ratio = float(eye_length / (eye_height + 1e-6))
         canthal_tilt = float(np.degrees(np.arctan2(-(rot_l_out[1] - rot_l_in[1]), rot_l_out[0] - rot_l_in[0])))
         eye_tilt_type = "正向飞扬势" if canthal_tilt > 3.0 else ("亲和微垂势" if canthal_tilt < -2.0 else "沉稳平视势")
 
-        # 4. ★ 深度扩充美学与相学指标
-        # D. 三庭精微绝对长度与相对比例 (上庭 : 中庭 : 下庭)
+        # 4. 扩充美学指标
         len_upper = max(1.0, abs(rot_glabella[1] - rot_trichion[1]))
         len_mid = max(1.0, abs(rot_subnasale[1] - rot_glabella[1]))
         len_lower = max(1.0, abs(rot_menton[1] - rot_subnasale[1]))
@@ -160,23 +162,19 @@ class FaceMeshService:
         ratio_lower = round(len_lower / len_upper, 2)
         three_parts_ratio = f"1 : {ratio_mid} : {ratio_lower}"
 
-        # E. 五眼法则：内眦间距 / 单眼长
         intercanthal_dist = np.linalg.norm(rot_l_in - rot_r_in)
         intercanthal_ratio = round(float(intercanthal_dist / (eye_length + 1e-6)), 2)
         intercanthal_type = "开阔包容型" if intercanthal_ratio > 1.05 else ("警惕敏锐型" if intercanthal_ratio < 0.95 else "黄金标准型")
 
-        # F. 财帛中岳：鼻翼宽度 / 鼻长比
         nasal_length = max(1.0, abs(rot_subnasale[1] - rot_nasion[1]))
         nasal_width = np.linalg.norm(rot_alar_l - rot_alar_r)
         nasal_width_ratio = round(float(nasal_width / nasal_length), 2)
 
-        # G. 唇形厚度比 (下唇厚度 / 上唇厚度)
         upper_thickness = max(1.0, abs(rot_lip_mid_up[1] - rot_lip_top[1]))
         lower_thickness = max(1.0, abs(rot_lip_bottom[1] - rot_lip_mid_down[1]))
         lip_thickness_ratio = round(float(lower_thickness / upper_thickness), 2)
 
-        # 5. 组装归一化（0~100% 相对屏幕比例）轮廓与三庭标尺
-        # 轮廓点阵 (转为画面绝对像素坐标)
+        # 5. 组装归一化轮廓与完整五官工程点位
         contour_polygon = [
             (round(float(raw_landmarks[idx].x * w), 1), round(float(raw_landmarks[idx].y * h), 1))
             for idx in CONTOUR_INDICES
@@ -202,6 +200,14 @@ class FaceMeshService:
             right_eye_outer=(round(float(p_r_out[0]), 1), round(float(p_r_out[1]), 1)),
             nose_tip=(round(float(p_nose_tip[0]), 1), round(float(p_nose_tip[1]), 1)),
             subnasale=(round(float(p_subnasale[0]), 1), round(float(p_subnasale[1]), 1)),
+            nasion=(round(float(p_nasion[0]), 1), round(float(p_nasion[1]), 1)),
+            alar_left=(round(float(p_alar_l[0]), 1), round(float(p_alar_l[1]), 1)),
+            alar_right=(round(float(p_alar_r[0]), 1), round(float(p_alar_r[1]), 1)),
+            brow_peak_left=(round(float(p_brow_l[0]), 1), round(float(p_brow_l[1]), 1)),
+            brow_peak_right=(round(float(p_brow_r[0]), 1), round(float(p_brow_r[1]), 1)),
+            lip_left=(round(float(p_lip_l[0]), 1), round(float(p_lip_l[1]), 1)),
+            lip_right=(round(float(p_lip_r[0]), 1), round(float(p_lip_r[1]), 1)),
+            lip_top=(round(float(p_lip_top[0]), 1), round(float(p_lip_top[1]), 1)),
             contour_polygon=contour_polygon,
             three_parts_levels=three_parts_levels
         )

@@ -8,7 +8,7 @@
       @load="onImageLoad"
     />
 
-    <!-- 高定骨相轮廓与三庭几何标尺绘制层 (高对比冷色调，彻底解决与肤色相近看不清的问题) -->
+    <!-- 高定骨相轮廓与五官几何标尺绘制层 (友好型高奢雅致配色，丰富五官辅助线) -->
     <canvas
       canvas-id="blueprintCanvas"
       id="blueprintCanvas"
@@ -64,12 +64,20 @@ function drawFacialBlueprint() {
       return y * scale + offsetY;
     }
 
-    // 1. 绘制细腻面部轮廓星轨线 (采用高对比冰川冷蓝青，彻底与暖黄肤色分离)
+    // 友好型高级配色定义：
+    // 主线：柔和微发光珍珠白 (在暖色皮肤上清晰自然、绝不刺眼)
+    const COLOR_PEARL_WHITE = "rgba(255, 255, 255, 0.88)";
+    // 辅线：雅致香槟金 (温润微雕)
+    const COLOR_CHAMPAGNE = "rgba(212, 175, 55, 0.75)";
+    // 阴影底描边：保证浅色皮肤与深色背景下均字字分明
+    const COLOR_SHADOW = "rgba(17, 24, 39, 0.22)";
+
+    // 1. 绘制细腻面部轮廓星轨线 (柔和珍珠白微虚线)
     if (cp.contour_polygon && cp.contour_polygon.length > 2) {
       ctx.beginPath();
-      ctx.setStrokeStyle("rgba(2, 132, 199, 0.9)"); // 亮青冷蓝
-      ctx.setLineWidth(1.8);
-      ctx.setLineDash([5, 3], 0);
+      ctx.setStrokeStyle(COLOR_PEARL_WHITE);
+      ctx.setLineWidth(1.6);
+      ctx.setLineDash([4, 3], 0);
 
       const startPt = cp.contour_polygon[0];
       ctx.moveTo(mapX(startPt[0]), mapY(startPt[1]));
@@ -81,7 +89,7 @@ function drawFacialBlueprint() {
       ctx.setLineDash([], 0); // 恢复实线
     }
 
-    // 2. 绘制三庭水平黄金分割标尺横线 (高对比荧光冷白带青光)
+    // 2. 绘制三庭水平黄金分割横线标尺 (带深浅双层描边)
     const levels = cp.three_parts_levels;
     if (levels) {
       const yTrichion = mapY(levels.trichion_y);
@@ -89,37 +97,36 @@ function drawFacialBlueprint() {
       const yNose = mapY(levels.subnasale_y);
       const yMenton = mapY(levels.menton_y);
 
-      // 横贯水平细线 (采用明亮冷青色线，清晰可见)
-      const lineLeft = 16;
-      const lineRight = cw - 72;
+      const lineLeft = 18;
+      const lineRight = cw - 76;
 
       [yTrichion, yBrow, yNose, yMenton].forEach((y) => {
-        // 先画一层深色半透明阴影，再画高光线，保证无论亮肤还是暗肤都极其醒目
-        ctx.setStrokeStyle("rgba(0, 0, 0, 0.35)");
+        // 先铺一层柔和半透明深色底，再叠珍珠高光线
+        ctx.setStrokeStyle(COLOR_SHADOW);
         ctx.setLineWidth(2.5);
         ctx.beginPath();
         ctx.moveTo(lineLeft, y);
         ctx.lineTo(lineRight, y);
         ctx.stroke();
 
-        ctx.setStrokeStyle("#00D2D3"); // 荧光冷青色
+        ctx.setStrokeStyle(COLOR_PEARL_WHITE);
         ctx.setLineWidth(1.2);
         ctx.beginPath();
         ctx.moveTo(lineLeft, y);
         ctx.lineTo(lineRight, y);
         ctx.stroke();
 
-        // 两侧微十字端点
+        // 左右端点微十字标
         ctx.beginPath();
-        ctx.setStrokeStyle("#00D2D3");
-        ctx.moveTo(lineLeft, y - 5);
-        ctx.lineTo(lineLeft, y + 5);
-        ctx.moveTo(lineRight, y - 5);
-        ctx.lineTo(lineRight, y + 5);
+        ctx.setStrokeStyle(COLOR_CHAMPAGNE);
+        ctx.moveTo(lineLeft, y - 4);
+        ctx.lineTo(lineLeft, y + 4);
+        ctx.moveTo(lineRight, y - 4);
+        ctx.lineTo(lineRight, y + 4);
         ctx.stroke();
       });
 
-      // 右侧三庭侧标文字 (深青底色微胶囊)
+      // 右侧三庭侧标文字 (温润白底高透小胶囊)
       const tags = [
         { label: "上庭", y: (yTrichion + yBrow) / 2 },
         { label: "中庭", y: (yBrow + yNose) / 2 },
@@ -127,42 +134,79 @@ function drawFacialBlueprint() {
       ];
 
       tags.forEach((item) => {
-        ctx.setFillStyle("rgba(15, 23, 42, 0.75)"); // 深冷灰背景块
-        ctx.fillRect(cw - 64, item.y - 12, 46, 22);
+        ctx.setFillStyle("rgba(255, 255, 255, 0.92)");
+        ctx.fillRect(cw - 68, item.y - 12, 48, 22);
 
-        ctx.setFillStyle("#00D2D3");
+        ctx.setStrokeStyle("rgba(212, 175, 55, 0.4)");
+        ctx.strokeRect(cw - 68, item.y - 12, 48, 22);
+
+        ctx.setFillStyle("#967032");
         ctx.setFontSize(11);
-        ctx.fillText(item.label, cw - 54, item.y + 4);
+        ctx.fillText(item.label, cw - 56, item.y + 4);
       });
 
       // 侧边连续基准竖线
-      ctx.setStrokeStyle("rgba(0, 210, 211, 0.6)");
-      ctx.setLineWidth(1.2);
+      ctx.setStrokeStyle("rgba(212, 175, 55, 0.5)");
+      ctx.setLineWidth(1);
       ctx.beginPath();
-      ctx.moveTo(cw - 68, yTrichion);
-      ctx.lineTo(cw - 68, yMenton);
+      ctx.moveTo(cw - 72, yTrichion);
+      ctx.lineTo(cw - 72, yMenton);
       ctx.stroke();
     }
 
-    // 3. 双眼水平轴线与微扬指示 (高清晰度对比)
-    if (cp.left_eye_inner && cp.left_eye_outer && cp.right_eye_inner && cp.right_eye_outer) {
-      ctx.setStrokeStyle("#38BDF8"); // 冰晶蓝
-      ctx.setLineWidth(1.4);
+    // 3. ★ 新增：五官精细辅助线扩充 (眉宇、鼻岳财帛三角、唇形弓线)
+    // A. 眉骨骨相连线 (保寿官 · 左右眉峰至印堂)
+    if (cp.brow_peak_left && cp.brow_peak_right && cp.nasion && cp.brow_peak_left[0] > 0) {
+      ctx.setStrokeStyle(COLOR_CHAMPAGNE);
+      ctx.setLineWidth(1);
+      ctx.beginPath();
+      ctx.moveTo(mapX(cp.brow_peak_right[0]), mapY(cp.brow_peak_right[1]));
+      ctx.lineTo(mapX(cp.nasion[0]), mapY(cp.nasion[1]));
+      ctx.lineTo(mapX(cp.brow_peak_left[0]), mapY(cp.brow_peak_left[1]));
+      ctx.stroke();
+    }
 
-      // 左眼外内眦连线
+    // B. 财帛中岳聚气三角 (审辨官 · 山根至鼻翼及鼻尖)
+    if (cp.nasion && cp.alar_left && cp.alar_right && cp.nose_tip && cp.alar_left[0] > 0) {
+      ctx.setStrokeStyle("rgba(212, 175, 55, 0.65)");
+      ctx.setLineWidth(1.2);
+      ctx.beginPath();
+      ctx.moveTo(mapX(cp.nasion[0]), mapY(cp.nasion[1]));
+      ctx.lineTo(mapX(cp.alar_left[0]), mapY(cp.alar_left[1]));
+      ctx.lineTo(mapX(cp.nose_tip[0]), mapY(cp.nose_tip[1]));
+      ctx.lineTo(mapX(cp.alar_right[0]), mapY(cp.alar_right[1]));
+      ctx.closePath();
+      ctx.stroke();
+    }
+
+    // C. 唇峰出纳弓线 (出纳官 · 嘴角至唇峰)
+    if (cp.lip_left && cp.lip_right && cp.lip_top && cp.lip_left[0] > 0) {
+      ctx.setStrokeStyle("rgba(255, 255, 255, 0.75)");
+      ctx.setLineWidth(1);
+      ctx.beginPath();
+      ctx.moveTo(mapX(cp.lip_r[0] || cp.lip_left[0]), mapY(cp.lip_r[1] || cp.lip_left[1]));
+      ctx.lineTo(mapX(cp.lip_top[0]), mapY(cp.lip_top[1]));
+      ctx.lineTo(mapX(cp.lip_l[0] || cp.lip_right[0]), mapY(cp.lip_l[1] || cp.lip_right[1]));
+      ctx.stroke();
+    }
+
+    // D. 双眼内外眦视轴连线
+    if (cp.left_eye_inner && cp.left_eye_outer && cp.right_eye_inner && cp.right_eye_outer) {
+      ctx.setStrokeStyle(COLOR_PEARL_WHITE);
+      ctx.setLineWidth(1.2);
+
       ctx.beginPath();
       ctx.moveTo(mapX(cp.left_eye_inner[0]), mapY(cp.left_eye_inner[1]));
       ctx.lineTo(mapX(cp.left_eye_outer[0]), mapY(cp.left_eye_outer[1]));
       ctx.stroke();
 
-      // 右眼外内眦连线
       ctx.beginPath();
       ctx.moveTo(mapX(cp.right_eye_inner[0]), mapY(cp.right_eye_inner[1]));
       ctx.lineTo(mapX(cp.right_eye_outer[0]), mapY(cp.right_eye_outer[1]));
       ctx.stroke();
     }
 
-    // 4. 关键五官骨相定位星芒点 (高亮珍珠白核心 + 蓝光微晕，在皮肤上对比度极强)
+    // 4. 关键骨相珍珠高光点 (瞳孔、山根、鼻尖、下巴顶、下颌角)
     const keyPoints = [
       cp.trichion,
       cp.menton,
@@ -181,17 +225,17 @@ function drawFacialBlueprint() {
       const px = mapX(pt[0]);
       const py = mapY(pt[1]);
 
-      // 外圈冷光晕
+      // 外圈香槟光晕
       ctx.beginPath();
-      ctx.setStrokeStyle("rgba(0, 210, 211, 0.8)");
+      ctx.setStrokeStyle("rgba(212, 175, 55, 0.7)");
       ctx.setLineWidth(1);
-      ctx.arc(px, py, 5, 0, 2 * Math.PI);
+      ctx.arc(px, py, 4.5, 0, 2 * Math.PI);
       ctx.stroke();
 
-      // 核心高光白点
+      // 核心珍珠白
       ctx.beginPath();
       ctx.setFillStyle("#FFFFFF");
-      ctx.arc(px, py, 2.5, 0, 2 * Math.PI);
+      ctx.arc(px, py, 2.2, 0, 2 * Math.PI);
       ctx.fill();
     });
 

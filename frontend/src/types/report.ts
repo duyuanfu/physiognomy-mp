@@ -18,6 +18,14 @@ export interface FacialCaliperPoints {
   right_eye_outer: [number, number];
   nose_tip: [number, number];
   subnasale: [number, number];
+  nasion?: [number, number];
+  alar_left?: [number, number];
+  alar_right?: [number, number];
+  brow_peak_left?: [number, number];
+  brow_peak_right?: [number, number];
+  lip_left?: [number, number];
+  lip_right?: [number, number];
+  lip_top?: [number, number];
   contour_polygon: [number, number][];
   three_parts_levels: ThreePartsLevels;
 }
