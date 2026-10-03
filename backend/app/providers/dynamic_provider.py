@@ -12,7 +12,19 @@ class DynamicOpenAIProvider(BaseLLMProvider):
     def __init__(self, base_url: str, api_key: str, model: str):
         self._base_url = base_url.rstrip("/")
         self._api_key = api_key
-        self._model = model
+
+        # ★ 智能模型名称纠偏与别名映射 (防止 DeepSeek-V4.1-Flash 被官方报错拒绝)
+        normalized_model = model
+        m_lower = model.lower().strip()
+        if "deepseek.com" in self._base_url:
+            if "flash" in m_lower or "v4.1" in m_lower or "4.1" in m_lower:
+                normalized_model = "deepseek-flash"
+            elif "pro" in m_lower:
+                normalized_model = "deepseek-v4-pro"
+            elif "chat" in m_lower:
+                normalized_model = "deepseek-chat"
+
+        self._model = normalized_model
 
     @property
     def provider_name(self) -> str:
@@ -59,7 +71,7 @@ class DynamicOpenAIProvider(BaseLLMProvider):
             except Exception as e:
                 logger.warning(f"多模态请求异常: {e}，尝试降级为纯文本几何描述...")
 
-            # 2. 如果模型仅支持文本输入（非视觉模型）或图片格式不兼容，自动降级为纯文本Prompt调用
+            # 2. 如果模型仅支持纯文本（非视觉模型）或图片格式不兼容，自动降级为纯文本Prompt调用
             if not raw_text:
                 payload_text_only = {
                     "model": self._model,

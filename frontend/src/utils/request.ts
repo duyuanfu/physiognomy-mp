@@ -10,7 +10,7 @@ export interface LlmConfig {
 export const DEFAULT_LLM_CONFIG: LlmConfig = {
   baseUrl: "https://api.deepseek.com",
   apiKey: "",
-  model: "DeepSeek-V4.1-Flash"
+  model: "deepseek-flash"
 };
 
 export function getLlmConfig(): LlmConfig {

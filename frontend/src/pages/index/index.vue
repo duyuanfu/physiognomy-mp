@@ -294,7 +294,7 @@ function selectVendor(type: "deepseek" | "gemini" | "qwen" | "custom") {
   selectedVendor.value = type;
   if (type === "deepseek") {
     tempConfig.value.baseUrl = "https://api.deepseek.com";
-    tempConfig.value.model = "DeepSeek-V4.1-Flash";
+    tempConfig.value.model = "deepseek-flash";
   } else if (type === "gemini") {
     tempConfig.value.baseUrl = "http://localhost:8045/v1";
     tempConfig.value.model = "gemini-3.8-flash";
