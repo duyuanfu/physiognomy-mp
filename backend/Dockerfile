@@ -9,9 +9,11 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     TZ=Asia/Shanghai
 
-# 安装 OpenCV / MediaPipe 必需的系统图像和多媒体动态链接库
+# 安装 MediaPipe & OpenCV 必需的系统动态库 (包含 libEGL, libGL, libGLES)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libgl1 \
+    libegl1 \
+    libgles2 \
     libglib2.0-0 \
     libgomp1 \
     libsm6 \
