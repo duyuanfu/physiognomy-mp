@@ -6,7 +6,7 @@
       <text class="dossier-code mono-font">档案编号 #{{ reportId }}</text>
     </view>
 
-    <!-- 照片与标尺展示 -->
+    <!-- 照片与高定骨相星轨标尺图层 -->
     <FacialCaliperCanvas :imageSrc="imageSrc" :metrics="metrics" />
 
     <!-- 核心骨相主导型 Hero 卡片 -->
@@ -61,7 +61,7 @@
         <text class="block-desc">{{ report.structure.bone_frame.analysis }}</text>
       </view>
 
-      <!-- 采听耳相佐证 (专属金边卡片) -->
+      <!-- 采听耳相佐证 -->
       <view class="ear-evidence-card">
         <view class="ear-card-header">
           <view class="ear-icon-dot"></view>
@@ -71,7 +71,7 @@
       </view>
     </view>
 
-    <!-- 第二章：微观五官气韵 -->
+    <!-- 第二章：微观五官气韵 (深度扩充至六大微观维度) -->
     <view class="chapter-card arch-card">
       <view class="chapter-title-row">
         <text class="chapter-num mono-font">02</text>
@@ -79,10 +79,23 @@
       </view>
 
       <view class="features-list">
+        <!-- 1. 眉宇骨相 -->
+        <view v-if="report.features.eyebrows" class="feature-row">
+          <view class="feature-meta">
+            <text class="feature-label">眉宇骨相</text>
+            <text class="feature-tag">保寿官</text>
+          </view>
+          <view class="feature-detail">
+            <text class="feature-headline">{{ report.features.eyebrows.title }}</text>
+            <text class="feature-body">{{ report.features.eyebrows.desc }}</text>
+          </view>
+        </view>
+
+        <!-- 2. 眼神明澈 -->
         <view class="feature-row">
           <view class="feature-meta">
-            <text class="feature-label">眼神眉宇</text>
-            <text class="feature-tag">眼相神采</text>
+            <text class="feature-label">眼神明澈</text>
+            <text class="feature-tag">监察官</text>
           </view>
           <view class="feature-detail">
             <text class="feature-headline">{{ report.features.eyes.title }}</text>
@@ -90,10 +103,23 @@
           </view>
         </view>
 
+        <!-- 3. 印堂山根 -->
+        <view v-if="report.features.glabella" class="feature-row">
+          <view class="feature-meta">
+            <text class="feature-label">印堂山根</text>
+            <text class="feature-tag">命宫根基</text>
+          </view>
+          <view class="feature-detail">
+            <text class="feature-headline">{{ report.features.glabella.title }}</text>
+            <text class="feature-body">{{ report.features.glabella.desc }}</text>
+          </view>
+        </view>
+
+        <!-- 4. 鼻岳财帛 -->
         <view class="feature-row">
           <view class="feature-meta">
-            <text class="feature-label">鼻岳印堂</text>
-            <text class="feature-tag">财帛中岳</text>
+            <text class="feature-label">鼻岳财帛</text>
+            <text class="feature-tag">审辨官</text>
           </view>
           <view class="feature-detail">
             <text class="feature-headline">{{ report.features.nose.title }}</text>
@@ -101,14 +127,27 @@
           </view>
         </view>
 
+        <!-- 5. 唇齿出纳 -->
         <view class="feature-row">
           <view class="feature-meta">
-            <text class="feature-label">唇颌承浆</text>
-            <text class="feature-tag">水星言辞</text>
+            <text class="feature-label">唇齿水星</text>
+            <text class="feature-tag">出纳官</text>
           </view>
           <view class="feature-detail">
             <text class="feature-headline">{{ report.features.mouth.title }}</text>
             <text class="feature-body">{{ report.features.mouth.desc }}</text>
+          </view>
+        </view>
+
+        <!-- 6. 地阁下颌 -->
+        <view v-if="report.features.jaw" class="feature-row">
+          <view class="feature-meta">
+            <text class="feature-label">地阁下颌</text>
+            <text class="feature-tag">奴仆基业</text>
+          </view>
+          <view class="feature-detail">
+            <text class="feature-headline">{{ report.features.jaw.title }}</text>
+            <text class="feature-body">{{ report.features.jaw.desc }}</text>
           </view>
         </view>
       </view>
@@ -442,7 +481,7 @@ const reportId = computed(() => {
   line-height: 1.7;
 }
 
-/* 五官拆解清单 */
+/* 五官拆解清单 (扩充至六大微观项) */
 .features-list {
   display: flex;
   flex-direction: column;

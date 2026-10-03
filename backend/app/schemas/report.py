@@ -32,7 +32,7 @@ class StructureSection(BaseModel):
 
 
 class FeatureItem(BaseModel):
-    title: str = Field(default="")
+    title: str = Field(default="五官气韵")
     desc: str = Field(default="")
 
     @model_validator(mode="before")
@@ -48,10 +48,27 @@ class FeatureItem(BaseModel):
         return data
 
 
+# ★ 扩充至六大微观五官气韵维度
 class FeaturesSection(BaseModel):
-    eyes: FeatureItem
-    nose: FeatureItem
-    mouth: FeatureItem
+    eyebrows: FeatureItem = Field(default_factory=lambda: FeatureItem(title="眉宇骨势 · 决断思辨", desc="眉骨起伏舒展，长短适中，展现自驱探索定力。"))
+    eyes: FeatureItem = Field(default_factory=lambda: FeatureItem(title="眼神明澈 · 洞察聚焦", desc="目光聚而不散，外眦上扬有势，注意力控制力极强。"))
+    glabella: FeatureItem = Field(default_factory=lambda: FeatureItem(title="印堂山根 · 命宫抗压", desc="印堂开朗平整，山根贯直，抗压承载度极高。"))
+    nose: FeatureItem = Field(default_factory=lambda: FeatureItem(title="鼻岳财帛 · 攻坚蓄势", desc="鼻梁直顺微挺，鼻翼聚拢收束，实操落地意志坚定。"))
+    mouth: FeatureItem = Field(default_factory=lambda: FeatureItem(title="唇齿出纳 · 表达温度", desc="唇线微收分明，厚薄相称，社交互动中言辞克制有度。"))
+    jaw: FeatureItem = Field(default_factory=lambda: FeatureItem(title="地阁下颌 · 稳态后劲", desc="下颌转折支撑有力，地阁平正，展现长周期复利韧劲。"))
+
+    @model_validator(mode="before")
+    @classmethod
+    def handle_legacy_keys(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            # 兼容老版只传了 eyes, nose, mouth 的情况
+            if "eyes" in data and "eyebrows" not in data:
+                data["eyebrows"] = {"title": "眉宇骨相", "desc": "眉骨开朗，眉尾聚敛，具自驱定力。"}
+            if "nose" in data and "glabella" not in data:
+                data["glabella"] = {"title": "印堂山根", "desc": "印堂平坦开阔，山根顺直，气韵中正。"}
+            if "mouth" in data and "jaw" not in data:
+                data["jaw"] = {"title": "下颌承托", "desc": "地阁支撑稳健，承载后劲充沛。"}
+        return data
 
 
 class RadarScoresSection(BaseModel):
@@ -91,7 +108,6 @@ class ExtensionsReserved(BaseModel):
     social_card: Optional[SocialCardExtension] = None
 
 
-# 大模型输出的主体内容结构
 class LLMReportContent(BaseModel):
     summary: SummarySection
     structure: StructureSection
@@ -100,11 +116,10 @@ class LLMReportContent(BaseModel):
     modern_advice: ModernAdviceSection
 
 
-# API 最终返回给前端的完整报文
 class FacialReportResponse(BaseModel):
     code: int = 200
     message: str = "success"
-    provider_used: str = Field(..., description="本次实际生效的模型提供方 (gemini / qwen)")
+    provider_used: str = Field(..., description="本次实际生效的模型提供方")
     metrics: FacialMetrics
     report: LLMReportContent
     extensions: ExtensionsReserved = Field(default_factory=ExtensionsReserved)

@@ -1,6 +1,6 @@
 <template>
   <view class="app-root">
-    <!-- 状态 1: 首页 Hero 入口 (支持前端自定义配置大模型与地址) -->
+    <!-- 状态 1: 首页 Hero 入口 (支持内嵌前置原生相机与分享配置) -->
     <view v-if="appState === 'hero'" class="hero-screen">
       <!-- 顶部品牌导航栏与模型配置入口 -->
       <view class="hero-nav-bar">
@@ -14,7 +14,6 @@
         </view>
 
         <view class="nav-right-actions">
-          <!-- 齿轮模型配置按钮 -->
           <view class="nav-setting-capsule" @click="openConfigModal">
             <text class="gear-icon">⚙</text>
             <text class="setting-label">{{ activeModelShortName }}</text>
@@ -22,28 +21,66 @@
         </view>
       </view>
 
-      <!-- 核心主体：纯净大气的上传与拍摄互动卡片 -->
+      <!-- 核心主体：纯净大气的上传与嵌入式前置拍摄卡片 -->
       <view class="main-capture-card arch-card">
-        <view class="capture-visual-box" @click="checkPrivacyAndChoose('camera')">
+        <!-- A. 处于实时相机模式时：嵌入式原生前置相机取景视窗 (直接开前置 + 辅助线) -->
+        <view v-if="isCameraLive" class="embedded-camera-box">
+          <!-- #ifdef MP-WEIXIN -->
+          <camera
+            device-position="front"
+            flash="off"
+            class="live-camera-view"
+            @error="onCameraError"
+          >
+            <!-- 覆盖在实时视频流上的高对比辅助线 -->
+            <cover-view class="camera-guideline-overlay">
+              <cover-view class="guide-oval-ring">
+                <cover-view class="guide-h-line"></cover-view>
+                <cover-view class="guide-eye-tag">双眸对准此处</cover-view>
+              </cover-view>
+            </cover-view>
+          </camera>
+          <!-- #endif -->
+          <!-- #ifndef MP-WEIXIN -->
+          <view class="h5-camera-mock" @click="checkPrivacyAndChoose('camera')">
+            <text class="capture-lead-text">点击调起前置摄像头</text>
+          </view>
+          <!-- #endif -->
+        </view>
+
+        <!-- B. 处于待机模式时：纯净艺术引导卡片 -->
+        <view v-else class="capture-visual-box" @click="startEmbeddedCamera">
           <view class="visual-inner-ring">
             <view class="camera-icon-circle">
               <text class="icon-camera">📷</text>
             </view>
-            <text class="capture-lead-text">点击对准拍摄肖像</text>
-            <text class="capture-sub-text">或从手机相册中选择正面照片</text>
+            <text class="capture-lead-text">开启前置相机对准拍摄</text>
+            <text class="capture-sub-text">实时辅助线对齐 · 解读骨相格局</text>
           </view>
         </view>
 
-        <!-- 极简双操作按钮组 -->
+        <!-- 按钮组 -->
         <view class="capture-btn-group">
-          <button class="arch-btn-primary full-btn" @click="checkPrivacyAndChoose('camera')">
+          <!-- 若相机已在内嵌取景，按钮变为「立即抓拍」 -->
+          <button v-if="isCameraLive" class="arch-btn-primary full-btn" @click="snapPhotoFromCamera">
             <text class="btn-symbol">✦</text>
-            <text>即刻拍摄</text>
+            <text>捕捉面容并解构</text>
           </button>
-          <button class="arch-btn-secondary full-btn" @click="checkPrivacyAndChoose('album')">
-            <text class="btn-symbol">🖼</text>
-            <text>相册上传</text>
+          <button v-else class="arch-btn-primary full-btn" @click="startEmbeddedCamera">
+            <text class="btn-symbol">✦</text>
+            <text>开启前置镜头拍摄</text>
           </button>
+
+          <!-- 次级操作 -->
+          <view class="sub-actions-row">
+            <button v-if="isCameraLive" class="arch-btn-secondary sub-btn" @click="isCameraLive = false">
+              <text>关闭镜头</text>
+            </button>
+            <button class="arch-btn-secondary sub-btn" @click="checkPrivacyAndChoose('album')">
+              <text class="btn-symbol">🖼</text>
+              <text>相册选择</text>
+            </button>
+          </view>
         </view>
       </view>
 
@@ -72,20 +109,13 @@
       </view>
     </view>
 
-    <!-- 状态 2: 取景校准引导遮罩 -->
-    <CameraGuideMask
-      v-else-if="appState === 'guide'"
-      @select-album="checkPrivacyAndChoose('album')"
-      @take-photo="checkPrivacyAndChoose('camera')"
-    />
-
-    <!-- 状态 3: 扫描仪式感动效 -->
+    <!-- 状态 2: 扫描仪式感动效 -->
     <ScanCeremonyOverlay
       v-else-if="appState === 'scanning'"
       :imageSrc="selectedImage"
     />
 
-    <!-- 状态 4: 杂志级解读报告呈现 -->
+    <!-- 状态 3: 杂志级解读报告呈现 -->
     <view v-else-if="appState === 'report' && reportData">
       <EditorialReportCard
         :imageSrc="selectedImage"
@@ -97,7 +127,7 @@
       />
     </view>
 
-    <!-- 前端自定义模型配置弹窗 (干净温润纯白弹窗) -->
+    <!-- 前端自定义模型配置弹窗 -->
     <view v-if="showConfigModal" class="config-modal-mask">
       <view class="config-modal-card arch-card">
         <view class="modal-header">
@@ -108,14 +138,12 @@
           <text class="modal-close-x" @click="showConfigModal = false">✕</text>
         </view>
 
-        <!-- 快速预设选项 -->
         <view class="presets-row">
           <text class="presets-title">快速配置：</text>
           <view class="preset-pill" @click="applyPreset('deepseek')">DeepSeek 官方</view>
           <view class="preset-pill" @click="applyPreset('gemini')">本地 Gemini 3.8</view>
         </view>
 
-        <!-- 表单项 -->
         <view class="modal-form">
           <view class="form-field">
             <text class="field-label">接口地址 (Base URL)</text>
@@ -146,7 +174,6 @@
           </view>
         </view>
 
-        <!-- 底部按钮 -->
         <view class="modal-actions">
           <button class="arch-btn-secondary modal-btn" @click="resetToDefaultConfig">恢复默认</button>
           <button class="arch-btn-primary modal-btn" @click="saveUserConfig">保存生效</button>
@@ -154,7 +181,7 @@
       </view>
     </view>
 
-    <!-- 用于导出 9:16 高清海报的离屏 Canvas -->
+    <!-- 离屏 Canvas 用于导出海报 -->
     <canvas
       canvas-id="posterCanvas"
       id="posterCanvas"
@@ -166,7 +193,7 @@
 
 <script setup lang="ts">
 import { ref, computed, getCurrentInstance } from "vue";
-import CameraGuideMask from "../../components/CameraGuideMask.vue";
+import { onShareAppMessage, onShareTimeline } from "@dcloudio/uni-app";
 import ScanCeremonyOverlay from "../../components/ScanCeremonyOverlay.vue";
 import EditorialReportCard from "../../components/EditorialReportCard.vue";
 import {
@@ -179,11 +206,32 @@ import {
 import { drawAndSavePoster } from "../../utils/poster";
 import { FacialReportResponse } from "../../types/report";
 
-type AppState = "hero" | "guide" | "scanning" | "report";
+// ★ 核心：配置微信小程序官方“转发给朋友”
+onShareAppMessage(() => {
+  return {
+    title: "相度 · 度量骨相，洞见气度",
+    path: "/pages/index/index",
+    imageUrl: "/static/logo.png"
+  };
+});
+
+// ★ 核心：配置微信小程序官方“分享到朋友圈”
+onShareTimeline(() => {
+  return {
+    title: "相度 · 现代面容骨相量度与神态美学",
+    query: "",
+    imageUrl: "/static/logo.png"
+  };
+});
+
+type AppState = "hero" | "scanning" | "report";
 
 const appState = ref<AppState>("hero");
 const selectedImage = ref<string>("");
 const reportData = ref<FacialReportResponse | null>(null);
+
+// 嵌入式原生前置相机状态
+const isCameraLive = ref(false);
 
 // 模型配置状态管理
 const showConfigModal = ref(false);
@@ -231,14 +279,56 @@ function saveUserConfig() {
 
 const instance = getCurrentInstance();
 
-function enterGuideMode() {
-  appState.value = "guide";
-}
-
 function resetToHero() {
   selectedImage.value = "";
   reportData.value = null;
+  isCameraLive.value = false;
   appState.value = "hero";
+}
+
+// 开启嵌入式前置原生相机
+function startEmbeddedCamera() {
+  // #ifdef MP-WEIXIN
+  uni.authorize({
+    scope: "scope.camera",
+    success: () => {
+      isCameraLive.value = true;
+    },
+    fail: () => {
+      // 若用户拒绝了相机授权，自动降级为系统选图
+      checkPrivacyAndChoose("camera");
+    }
+  });
+  // #endif
+  // #ifndef MP-WEIXIN
+  checkPrivacyAndChoose("camera");
+  // #endif
+}
+
+function onCameraError() {
+  isCameraLive.value = false;
+  checkPrivacyAndChoose("camera");
+}
+
+// 从嵌入式相机直接抓拍高清帧
+function snapPhotoFromCamera() {
+  // #ifdef MP-WEIXIN
+  const cameraCtx = uni.createCameraContext();
+  if (cameraCtx && cameraCtx.takePhoto) {
+    cameraCtx.takePhoto({
+      quality: "high",
+      success: (res: any) => {
+        isCameraLive.value = false;
+        onImageSelected(res.tempImagePath);
+      },
+      fail: () => {
+        checkPrivacyAndChoose("camera");
+      }
+    });
+    return;
+  }
+  // #endif
+  checkPrivacyAndChoose("camera");
 }
 
 function checkPrivacyAndChoose(preferredSource: "album" | "camera") {
@@ -275,32 +365,32 @@ function checkPrivacyAndChoose(preferredSource: "album" | "camera") {
   handleChooseImage(preferredSource);
 }
 
+const onImageSelected = async (filePath: string) => {
+  selectedImage.value = filePath;
+  appState.value = "scanning";
+  try {
+    const response = await analyzeFaceImage(selectedImage.value);
+    reportData.value = response;
+    setTimeout(() => {
+      appState.value = "report";
+    }, 1600);
+  } catch (error: any) {
+    uni.showModal({
+      title: "解构提醒",
+      content: error.message || "未能捕捉到清晰面部能量，请确保正视镜头重新拍摄",
+      showCancel: false,
+      confirmText: "重新拍摄",
+      success: () => {
+        appState.value = "hero";
+      }
+    });
+  }
+};
+
 function handleChooseImage(preferredSource: "album" | "camera") {
   const sources: ("album" | "camera")[] = preferredSource === "camera" 
     ? ["camera", "album"] 
     : ["album"];
-
-  const onImageSelected = async (filePath: string) => {
-    selectedImage.value = filePath;
-    appState.value = "scanning";
-    try {
-      const response = await analyzeFaceImage(selectedImage.value);
-      reportData.value = response;
-      setTimeout(() => {
-        appState.value = "report";
-      }, 1600);
-    } catch (error: any) {
-      uni.showModal({
-        title: "解构提醒",
-        content: error.message || "未能捕捉到清晰面部能量，请确保正视镜头重新拍摄",
-        showCancel: false,
-        confirmText: "重新拍摄",
-        success: () => {
-          appState.value = "hero";
-        }
-      });
-    }
-  };
 
   const uniAny = uni as any;
   if (uniAny.chooseMedia) {
@@ -308,6 +398,7 @@ function handleChooseImage(preferredSource: "album" | "camera") {
       count: 1,
       mediaType: ["image"],
       sourceType: sources,
+      camera: "front", // 明确指定优先前置摄像头！
       success: (res: any) => {
         if (res.tempFiles && res.tempFiles.length > 0) {
           onImageSelected(res.tempFiles[0].tempFilePath);
@@ -352,17 +443,7 @@ function handlePickerError(err: any, preferredSource: "album" | "camera") {
       sourceType: ["album"],
       success: (res) => {
         if (res.tempFilePaths && res.tempFilePaths.length > 0) {
-          selectedImage.value = res.tempFilePaths[0];
-          appState.value = "scanning";
-          analyzeFaceImage(selectedImage.value)
-            .then(resp => {
-              reportData.value = resp;
-              setTimeout(() => { appState.value = "report"; }, 1600);
-            })
-            .catch(e => {
-              uni.showToast({ title: e.message || "分析失败", icon: "none" });
-              appState.value = "hero";
-            });
+          onImageSelected(res.tempFilePaths[0]);
         }
       },
       fail: () => {}
@@ -458,7 +539,6 @@ function handleExportPoster() {
   padding: 8rpx 20rpx;
   border-radius: 9999rpx;
   box-shadow: 0 2rpx 8rpx rgba(184, 144, 88, 0.1);
-  transition: all 0.2s ease;
 }
 
 .nav-setting-capsule:active {
@@ -491,16 +571,16 @@ function handleExportPoster() {
   box-shadow: 0 10rpx 40rpx rgba(0, 0, 0, 0.03);
 }
 
+/* 待机视窗 */
 .capture-visual-box {
   width: 100%;
-  height: 380rpx;
+  height: 440rpx;
   background: radial-gradient(circle at center, rgba(184, 144, 88, 0.08) 0%, #FAFAF8 80%);
   border: 2rpx dashed #C5A059;
   border-radius: 16rpx;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.2s ease;
 }
 
 .capture-visual-box:active {
@@ -541,12 +621,75 @@ function handleExportPoster() {
   color: #6B7280;
 }
 
+/* ★ 嵌入式前置原生相机视窗 */
+.embedded-camera-box {
+  position: relative;
+  width: 100%;
+  height: 460rpx;
+  border-radius: 16rpx;
+  overflow: hidden;
+  border: 2rpx solid #B89058;
+  box-shadow: 0 8rpx 28rpx rgba(184, 144, 88, 0.15);
+}
+
+.live-camera-view {
+  width: 100%;
+  height: 100%;
+}
+
+.camera-guideline-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.guide-oval-ring {
+  width: 320rpx;
+  height: 400rpx;
+  border: 2rpx dashed #00D2D3;
+  border-radius: 160rpx / 200rpx;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.guide-h-line {
+  width: 100%;
+  height: 2rpx;
+  background: rgba(0, 210, 211, 0.5);
+}
+
+.guide-eye-tag {
+  font-size: 18rpx;
+  color: #00D2D3;
+  margin-top: 6rpx;
+  background: rgba(0, 0, 0, 0.4);
+  padding: 2rpx 10rpx;
+  border-radius: 9999rpx;
+}
+
 /* 按钮组 */
 .capture-btn-group {
   display: flex;
   flex-direction: column;
-  gap: 18rpx;
+  gap: 16rpx;
   width: 100%;
+}
+
+.sub-actions-row {
+  display: flex;
+  gap: 16rpx;
+  width: 100%;
+}
+
+.sub-btn {
+  flex: 1;
 }
 
 .full-btn {
@@ -665,7 +808,6 @@ function handleExportPoster() {
   line-height: 1;
 }
 
-/* 快速预设选项 */
 .presets-row {
   display: flex;
   align-items: center;
@@ -686,14 +828,12 @@ function handleExportPoster() {
   padding: 6rpx 16rpx;
   border-radius: 9999rpx;
   font-weight: 500;
-  transition: all 0.2s ease;
 }
 
 .preset-pill:active {
   background: #F6EDE0;
 }
 
-/* 表单字段 */
 .modal-form {
   display: flex;
   flex-direction: column;
@@ -729,7 +869,6 @@ function handleExportPoster() {
   background: #FFFFFF;
 }
 
-/* 底部操作 */
 .modal-actions {
   display: flex;
   gap: 20rpx;

@@ -39,6 +39,20 @@ export interface FacialMetrics {
   caliper_points: FacialCaliperPoints;
 }
 
+export interface FeatureItem {
+  title: string;
+  desc: string;
+}
+
+export interface FeaturesSection {
+  eyebrows?: FeatureItem;
+  eyes: FeatureItem;
+  glabella?: FeatureItem;
+  nose: FeatureItem;
+  mouth: FeatureItem;
+  jaw?: FeatureItem;
+}
+
 export interface LLMReportContent {
   summary: {
     archetype: string;
@@ -60,11 +74,7 @@ export interface LLMReportContent {
       analysis: string;
     };
   };
-  features: {
-    eyes: { title: string; desc: string };
-    nose: { title: string; desc: string };
-    mouth: { title: string; desc: string };
-  };
+  features: FeaturesSection;
   radar_scores: {
     intellect: number;
     presence: number;

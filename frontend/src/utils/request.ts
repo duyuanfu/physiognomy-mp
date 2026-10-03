@@ -32,10 +32,10 @@ function resolveApiBaseUrl(): string {
   try {
     const sys = uni.getSystemInfoSync();
     if (sys && sys.platform === "devtools") {
-      return "http://127.0.0.1:8000/api/v1";
+      return "https://api.trythis.pw/api/v1";
     }
   } catch (e) {}
-  return "http://192.168.1.21:8000/api/v1";
+  return "https://api.trythis.pw/api/v1";
 }
 
 const BASE_URL = resolveApiBaseUrl();
