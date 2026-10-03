@@ -1,10 +1,10 @@
 import logging
-from typing import Tuple
+from typing import Tuple, Optional
 from app.core.config import settings
-from app.core.exceptions import LLMServiceUnavailableException
 from app.providers.base import BaseLLMProvider
 from app.providers.gemini_provider import GeminiFlashProvider
 from app.providers.qwen_provider import QwenVLProvider
+from app.providers.dynamic_provider import DynamicOpenAIProvider
 from app.schemas.report import (
     LLMReportContent,
     SummarySection,
@@ -28,8 +28,7 @@ class ProviderManager:
         self.qwen_provider = QwenVLProvider()
 
     def _generate_mock_fallback(self, metrics: FacialMetrics) -> LLMReportContent:
-        """当外部大模型均不可达或未配置API Key时，基于真实CV数据装配极简冷淡风高智感报告"""
-        # 根据下颌角与脸型决定主导型
+        """当外部大模型均不可达、额度耗尽或未配置时，基于真实CV数据装配极简冷淡风高智感报告"""
         if metrics.jaw_angle_degree < 85:
             archetype = "凛然折角型"
             bone_desc = "下颌折角锐利紧致，下庭线条清晰收束。筋骨撑肉，具备极强的决策果断力与原则底线感。"
@@ -59,7 +58,7 @@ class ProviderManager:
             ),
             structure=StructureSection(
                 three_parts=ThreePartsSection(
-                    ratio=f"1 : {round(metrics.face_ratio * 0.75, 2)} : 0.95",
+                    ratio=metrics.three_parts_ratio,
                     verdict=f"面部长宽比 {metrics.face_ratio}，{metrics.face_type}格局舒展",
                     analysis="上庭饱满主早慧自主探索，中庭挺直利事业开拓攻坚，下庭承托力强主晚景沉淀蓄势。"
                 ),
@@ -78,12 +77,12 @@ class ProviderManager:
                     desc=canthal_desc
                 ),
                 nose=FeatureItem(
-                    title="鼻岳印堂 · 山根挺秀",
+                    title=f"鼻岳印堂 · 鼻翼比 {metrics.nasal_width_ratio}",
                     desc="山根平直与印堂开阔呼应，进取心明确，具备极佳的全局资源掌控与调配潜能。"
                 ),
                 mouth=FeatureItem(
-                    title="唇颌承浆 · 唇线微敛",
-                    desc="唇形边缘清晰微收，言辞严谨克制，在社交互动中极其注重人际边界与空间感。"
+                    title=f"唇颌承浆 · 厚度比 {metrics.lip_thickness_ratio}",
+                    desc="唇形边缘清晰微收，言辞严谨克制，在社交互动中注重人际边界与空间感。"
                 )
             ),
             radar_scores=RadarScoresSection(
@@ -103,28 +102,39 @@ class ProviderManager:
         self,
         image_bytes: bytes,
         prompt: str,
-        metrics: FacialMetrics
+        metrics: FacialMetrics,
+        custom_base_url: Optional[str] = None,
+        custom_api_key: Optional[str] = None,
+        custom_model: Optional[str] = None
     ) -> Tuple[LLMReportContent, str]:
-        # 1. 优先通道
-        primary = self.gemini_provider if settings.DEFAULT_PROVIDER == "gemini" else self.qwen_provider
-        secondary = self.qwen_provider if settings.DEFAULT_PROVIDER == "gemini" else self.gemini_provider
+        # 1. 确定本次调用的主模型通道 (前端动态传入优先，否则使用系统默认配置)
+        target_base_url = custom_base_url or settings.DEFAULT_BASE_URL
+        target_api_key = custom_api_key or settings.DEFAULT_API_KEY
+        target_model = custom_model or settings.DEFAULT_MODEL
 
-        try:
-            logger.info(f"尝试调用主模型: {primary.provider_name}...")
-            report = await primary.generate_report(image_bytes, prompt, settings.PRIMARY_TIMEOUT_SECONDS)
-            return report, primary.provider_name
-        except Exception as e:
-            logger.warning(f"主模型 [{primary.provider_name}] 异常 ({str(e)})，自动切换至备用模型 [{secondary.provider_name}]...")
+        if target_base_url and target_api_key:
+            provider = DynamicOpenAIProvider(
+                base_url=target_base_url,
+                api_key=target_api_key,
+                model=target_model
+            )
+            try:
+                logger.info(f"正在调用配置的模型 [{target_model}] @ [{target_base_url}]...")
+                report = await provider.generate_report(image_bytes, prompt, settings.PRIMARY_TIMEOUT_SECONDS)
+                return report, target_model
+            except Exception as e:
+                logger.warning(f"配置模型 [{target_model}] 调用异常 ({str(e)})，尝试自动切换至备用通道...")
 
-        # 2. 备用通道故障转移
-        try:
-            logger.info(f"调用备用模型: {secondary.provider_name}...")
-            report = await secondary.generate_report(image_bytes, prompt, settings.SECONDARY_TIMEOUT_SECONDS)
-            return report, secondary.provider_name
-        except Exception as e:
-            logger.warning(f"备用模型 [{secondary.provider_name}] 同样异常 ({str(e)})，启用极简离线骨相知识库装配引擎...")
+        # 2. 本地热备通道：Gemini 1.5/3.8 Flash
+        if settings.GEMINI_API_KEY and settings.GEMINI_BASE_URL:
+            try:
+                logger.info(f"调用本地备用模型: {self.gemini_provider.provider_name}...")
+                report = await self.gemini_provider.generate_report(image_bytes, prompt, settings.PRIMARY_TIMEOUT_SECONDS)
+                return report, "gemini-flash"
+            except Exception as e:
+                logger.warning(f"备用模型异常: {e}，启用高智感离线引擎...")
 
-        # 3. 兜底离线装配（绝不中断服务）
+        # 3. 兜底离线引擎 (保证 100% 服务不中断)
         report = self._generate_mock_fallback(metrics)
         return report, "offline_engine"
 

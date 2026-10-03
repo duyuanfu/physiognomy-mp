@@ -1,8 +1,33 @@
 import { FacialReportResponse } from "../types/report";
 
-// 智能自适应调度后端地址：
-// 1. 微信模拟器端(devtools): 使用稳定直连的 http://127.0.0.1:8000
-// 2. 手机真机端(ios/android): 自动使用同一局域网 Wi-Fi 的 http://192.168.1.21:8000
+export interface LlmConfig {
+  baseUrl: string;
+  apiKey: string;
+  model: string;
+}
+
+// 默认配置（用户指定：DeepSeek-V4.1-Flash）
+export const DEFAULT_LLM_CONFIG: LlmConfig = {
+  baseUrl: "https://api.deepseek.com",
+  apiKey: "sk-368bdbc412ea4f369721e644a0b330e2",
+  model: "DeepSeek-V4.1-Flash"
+};
+
+export function getLlmConfig(): LlmConfig {
+  try {
+    const saved = uni.getStorageSync("llm_config");
+    if (saved && saved.apiKey && saved.baseUrl && saved.model) {
+      return saved;
+    }
+  } catch (e) {}
+  return DEFAULT_LLM_CONFIG;
+}
+
+export function saveLlmConfig(cfg: LlmConfig) {
+  uni.setStorageSync("llm_config", cfg);
+}
+
+// 智能自适应调度后端地址
 function resolveApiBaseUrl(): string {
   try {
     const sys = uni.getSystemInfoSync();
@@ -15,8 +40,7 @@ function resolveApiBaseUrl(): string {
 
 const BASE_URL = resolveApiBaseUrl();
 
-// 通过 Base64 走标准 POST 请求（专门用来突破微信开发者工具本地代理对 uploadFile 的 socket 劫持）
-function fallbackPostBase64(filePath: string): Promise<FacialReportResponse> {
+function fallbackPostBase64(filePath: string, cfg: LlmConfig): Promise<FacialReportResponse> {
   return new Promise((resolve, reject) => {
     try {
       const fs = (uni as any).getFileSystemManager();
@@ -29,7 +53,10 @@ function fallbackPostBase64(filePath: string): Promise<FacialReportResponse> {
           "content-type": "application/x-www-form-urlencoded"
         },
         data: {
-          image_base64: base64Data
+          image_base64: base64Data,
+          custom_base_url: cfg.baseUrl,
+          custom_api_key: cfg.apiKey,
+          custom_model: cfg.model
         },
         timeout: 60000,
         success: (res: any) => {
@@ -50,12 +77,18 @@ function fallbackPostBase64(filePath: string): Promise<FacialReportResponse> {
 }
 
 export function analyzeFaceImage(filePath: string): Promise<FacialReportResponse> {
+  const cfg = getLlmConfig();
+
   return new Promise((resolve, reject) => {
-    // 优先尝试标准 uploadFile
     uni.uploadFile({
       url: `${BASE_URL}/analyze`,
       filePath: filePath,
       name: "file",
+      formData: {
+        custom_base_url: cfg.baseUrl,
+        custom_api_key: cfg.apiKey,
+        custom_model: cfg.model
+      },
       timeout: 60000,
       success: (uploadRes) => {
         if (uploadRes.statusCode === 200) {
@@ -78,9 +111,8 @@ export function analyzeFaceImage(filePath: string): Promise<FacialReportResponse
         const msg = err.errMsg || "";
         console.warn("uploadFile 失败，尝试启用 Base64 备用通道...", msg);
 
-        // 如果触发了微信开发工具常见的 socket hang up，立即自动无缝切换到 Base64 通道
         if (msg.includes("socket hang up") || msg.includes("ECONNRESET") || msg.includes("timeout")) {
-          fallbackPostBase64(filePath)
+          fallbackPostBase64(filePath, cfg)
             .then(resolve)
             .catch(() => {
               reject(new Error("连接中断：请在微信开发者工具顶部「设置」➔「代理设置」中勾选「不使用任何代理」后重试"));

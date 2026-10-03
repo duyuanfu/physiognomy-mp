@@ -1,13 +1,24 @@
 <template>
   <view class="app-root">
-    <!-- 状态 1: 首页 Hero 入口 (极简、通透、舒服、去杂质) -->
+    <!-- 状态 1: 首页 Hero 入口 (支持前端自定义配置大模型与地址) -->
     <view v-if="appState === 'hero'" class="hero-screen">
-      <!-- 顶部精修品牌区 -->
-      <view class="hero-brand-header">
-        <image src="/static/logo.png" class="brand-logo" mode="aspectFit" />
-        <view class="brand-title-wrap">
-          <text class="brand-name">相度</text>
-          <text class="brand-desc">度量骨相 · 洞见气度</text>
+      <!-- 顶部品牌导航栏与模型配置入口 -->
+      <view class="hero-nav-bar">
+        <view class="nav-brand-group">
+          <!-- 官方高定 Logo -->
+          <image src="/static/logo.png" class="brand-logo-img" mode="aspectFit" />
+          <view class="brand-text-col">
+            <text class="brand-main">相度</text>
+            <text class="brand-sub">度量骨相 · 洞见气度</text>
+          </view>
+        </view>
+
+        <view class="nav-right-actions">
+          <!-- 齿轮模型配置按钮 -->
+          <view class="nav-setting-capsule" @click="openConfigModal">
+            <text class="gear-icon">⚙</text>
+            <text class="setting-label">{{ activeModelShortName }}</text>
+          </view>
         </view>
       </view>
 
@@ -36,7 +47,7 @@
         </view>
       </view>
 
-      <!-- 三大核心解构维度说明 (极简纯粹，无杂质噪点) -->
+      <!-- 三大核心解构维度说明 -->
       <view class="dimensions-strip">
         <view class="dim-item">
           <text class="dim-num mono-font">01</text>
@@ -86,6 +97,63 @@
       />
     </view>
 
+    <!-- 前端自定义模型配置弹窗 (干净温润纯白弹窗) -->
+    <view v-if="showConfigModal" class="config-modal-mask">
+      <view class="config-modal-card arch-card">
+        <view class="modal-header">
+          <view class="modal-title-group">
+            <text class="modal-title arch-heading">LLM 智能模型配置</text>
+            <text class="modal-desc">支持自定义任何兼容 OpenAI 协议的推理接口与模型</text>
+          </view>
+          <text class="modal-close-x" @click="showConfigModal = false">✕</text>
+        </view>
+
+        <!-- 快速预设选项 -->
+        <view class="presets-row">
+          <text class="presets-title">快速配置：</text>
+          <view class="preset-pill" @click="applyPreset('deepseek')">DeepSeek 官方</view>
+          <view class="preset-pill" @click="applyPreset('gemini')">本地 Gemini 3.8</view>
+        </view>
+
+        <!-- 表单项 -->
+        <view class="modal-form">
+          <view class="form-field">
+            <text class="field-label">接口地址 (Base URL)</text>
+            <input
+              v-model="tempConfig.baseUrl"
+              class="field-input mono-font"
+              placeholder="https://api.deepseek.com"
+            />
+          </view>
+
+          <view class="form-field">
+            <text class="field-label">API 密钥 (API Key)</text>
+            <input
+              v-model="tempConfig.apiKey"
+              class="field-input mono-font"
+              type="text"
+              placeholder="sk-..."
+            />
+          </view>
+
+          <view class="form-field">
+            <text class="field-label">模型名称 (Model Name)</text>
+            <input
+              v-model="tempConfig.model"
+              class="field-input mono-font"
+              placeholder="DeepSeek-V4.1-Flash"
+            />
+          </view>
+        </view>
+
+        <!-- 底部按钮 -->
+        <view class="modal-actions">
+          <button class="arch-btn-secondary modal-btn" @click="resetToDefaultConfig">恢复默认</button>
+          <button class="arch-btn-primary modal-btn" @click="saveUserConfig">保存生效</button>
+        </view>
+      </view>
+    </view>
+
     <!-- 用于导出 9:16 高清海报的离屏 Canvas -->
     <canvas
       canvas-id="posterCanvas"
@@ -97,11 +165,17 @@
 </template>
 
 <script setup lang="ts">
-import { ref, getCurrentInstance } from "vue";
+import { ref, computed, getCurrentInstance } from "vue";
 import CameraGuideMask from "../../components/CameraGuideMask.vue";
 import ScanCeremonyOverlay from "../../components/ScanCeremonyOverlay.vue";
 import EditorialReportCard from "../../components/EditorialReportCard.vue";
-import { analyzeFaceImage } from "../../utils/request";
+import {
+  analyzeFaceImage,
+  getLlmConfig,
+  saveLlmConfig,
+  DEFAULT_LLM_CONFIG,
+  LlmConfig
+} from "../../utils/request";
 import { drawAndSavePoster } from "../../utils/poster";
 import { FacialReportResponse } from "../../types/report";
 
@@ -110,6 +184,50 @@ type AppState = "hero" | "guide" | "scanning" | "report";
 const appState = ref<AppState>("hero");
 const selectedImage = ref<string>("");
 const reportData = ref<FacialReportResponse | null>(null);
+
+// 模型配置状态管理
+const showConfigModal = ref(false);
+const activeConfig = ref<LlmConfig>(getLlmConfig());
+const tempConfig = ref<LlmConfig>({ ...activeConfig.value });
+
+const activeModelShortName = computed(() => {
+  const m = activeConfig.value.model || "DeepSeek";
+  if (m.toLowerCase().includes("deepseek")) return "DeepSeek-V4.1";
+  if (m.toLowerCase().includes("gemini")) return "Gemini-3.8";
+  return m.slice(0, 12);
+});
+
+function openConfigModal() {
+  tempConfig.value = { ...activeConfig.value };
+  showConfigModal.value = true;
+}
+
+function applyPreset(type: "deepseek" | "gemini") {
+  if (type === "deepseek") {
+    tempConfig.value = {
+      baseUrl: "https://api.deepseek.com",
+      apiKey: "sk-368bdbc412ea4f369721e644a0b330e2",
+      model: "DeepSeek-V4.1-Flash"
+    };
+  } else if (type === "gemini") {
+    tempConfig.value = {
+      baseUrl: "http://localhost:8045/v1",
+      apiKey: "sk-f9ae12d50cca49a78ce1d7241caf6570",
+      model: "gemini-3.8-flash"
+    };
+  }
+}
+
+function resetToDefaultConfig() {
+  tempConfig.value = { ...DEFAULT_LLM_CONFIG };
+}
+
+function saveUserConfig() {
+  activeConfig.value = { ...tempConfig.value };
+  saveLlmConfig(activeConfig.value);
+  showConfigModal.value = false;
+  uni.showToast({ title: "模型配置已更新生效", icon: "success" });
+}
 
 const instance = getCurrentInstance();
 
@@ -275,57 +393,91 @@ function handleExportPoster() {
   box-sizing: border-box;
 }
 
-/* 首页整体布局：通透、留白充足、舒服 */
+/* 首页整体布局 */
 .hero-screen {
   display: flex;
   flex-direction: column;
   justify-content: space-between;
   align-items: center;
   min-height: 100vh;
-  padding: 60rpx 40rpx;
+  padding: 50rpx 40rpx;
   background: #FBFBFC;
   box-sizing: border-box;
 }
 
-/* 顶部品牌区 */
-.hero-brand-header {
+/* 顶部导航与配置按钮 */
+.hero-nav-bar {
   display: flex;
-  flex-direction: column;
+  justify-content: space-between;
   align-items: center;
-  text-align: center;
+  width: 100%;
+  padding-top: 10rpx;
+}
+
+.nav-brand-group {
+  display: flex;
+  align-items: center;
   gap: 16rpx;
-  padding-top: 20rpx;
 }
 
-.brand-logo {
-  width: 130rpx;
-  height: 130rpx;
-  border-radius: 28rpx;
-  box-shadow: 0 8rpx 28rpx rgba(184, 144, 88, 0.22);
+.brand-logo-img {
+  width: 76rpx;
+  height: 76rpx;
+  border-radius: 18rpx;
+  box-shadow: 0 4rpx 16rpx rgba(184, 144, 88, 0.22);
 }
 
-.brand-title-wrap {
+.brand-text-col {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 6rpx;
 }
 
-.brand-name {
-  font-size: 46rpx;
+.brand-main {
+  font-size: 32rpx;
   font-weight: 700;
   color: #111827;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.04em;
+  line-height: 1.2;
 }
 
-.brand-desc {
-  font-size: 24rpx;
+.brand-sub {
+  font-size: 18rpx;
   color: #B89058;
-  letter-spacing: 0.08em;
-  font-weight: 500;
+  letter-spacing: 0.04em;
+  font-weight: 600;
+  line-height: 1.2;
 }
 
-/* 核心互动卡片：干净大方 */
+/* 顶部模型配置徽标胶囊 */
+.nav-setting-capsule {
+  display: flex;
+  align-items: center;
+  gap: 8rpx;
+  background: #FDF9F2;
+  border: 1px solid #F3E4C9;
+  padding: 8rpx 20rpx;
+  border-radius: 9999rpx;
+  box-shadow: 0 2rpx 8rpx rgba(184, 144, 88, 0.1);
+  transition: all 0.2s ease;
+}
+
+.nav-setting-capsule:active {
+  background: #F6EDE0;
+}
+
+.gear-icon {
+  font-size: 20rpx;
+  color: #B89058;
+}
+
+.setting-label {
+  font-size: 20rpx;
+  color: #B89058;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+/* 核心互动卡片 */
 .main-capture-card {
   width: 100%;
   max-width: 620rpx;
@@ -339,7 +491,6 @@ function handleExportPoster() {
   box-shadow: 0 10rpx 40rpx rgba(0, 0, 0, 0.03);
 }
 
-/* 取景引导框微互动视窗 */
 .capture-visual-box {
   width: 100%;
   height: 380rpx;
@@ -443,7 +594,7 @@ function handleExportPoster() {
   align-items: center;
   justify-content: center;
   gap: 10rpx;
-  padding-bottom: 20rpx;
+  padding-bottom: 16rpx;
 }
 
 .lock-icon {
@@ -454,6 +605,139 @@ function handleExportPoster() {
   font-size: 20rpx;
   color: #9CA3AF;
   letter-spacing: 0.02em;
+}
+
+/* 模型配置弹窗样式 */
+.config-modal-mask {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(17, 24, 39, 0.45);
+  backdrop-filter: blur(6px);
+  z-index: 999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 30rpx;
+  box-sizing: border-box;
+}
+
+.config-modal-card {
+  width: 100%;
+  max-width: 640rpx;
+  background: #FFFFFF;
+  border-radius: 24rpx;
+  padding: 40rpx;
+  display: flex;
+  flex-direction: column;
+  gap: 28rpx;
+  box-shadow: 0 20rpx 60rpx rgba(0, 0, 0, 0.15);
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.modal-title-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6rpx;
+}
+
+.modal-title {
+  font-size: 34rpx;
+  color: #111827;
+}
+
+.modal-desc {
+  font-size: 20rpx;
+  color: #6B7280;
+}
+
+.modal-close-x {
+  font-size: 32rpx;
+  color: #9CA3AF;
+  padding: 8rpx;
+  line-height: 1;
+}
+
+/* 快速预设选项 */
+.presets-row {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+  flex-wrap: wrap;
+}
+
+.presets-title {
+  font-size: 20rpx;
+  color: #6B7280;
+}
+
+.preset-pill {
+  font-size: 20rpx;
+  color: #B89058;
+  background: #FDF9F2;
+  border: 1px solid #F3E4C9;
+  padding: 6rpx 16rpx;
+  border-radius: 9999rpx;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.preset-pill:active {
+  background: #F6EDE0;
+}
+
+/* 表单字段 */
+.modal-form {
+  display: flex;
+  flex-direction: column;
+  gap: 22rpx;
+}
+
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 10rpx;
+}
+
+.field-label {
+  font-size: 22rpx;
+  font-weight: 600;
+  color: #374151;
+}
+
+.field-input {
+  width: 100%;
+  height: 76rpx;
+  background: #F9FAFB;
+  border: 1px solid #E5E7EB;
+  border-radius: 10rpx;
+  padding: 0 20rpx;
+  font-size: 24rpx;
+  color: #111827;
+  box-sizing: border-box;
+}
+
+.field-input:focus {
+  border-color: #B89058;
+  background: #FFFFFF;
+}
+
+/* 底部操作 */
+.modal-actions {
+  display: flex;
+  gap: 20rpx;
+  margin-top: 10rpx;
+}
+
+.modal-btn {
+  flex: 1;
 }
 
 .hidden-poster-canvas {

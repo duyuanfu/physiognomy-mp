@@ -12,14 +12,14 @@ from app.schemas.report import FacialReportResponse, ExtensionsReserved
 router = APIRouter()
 
 
-class Base64AnalyzeRequest(BaseModel):
-    image_base64: str
-
-
 @router.post("/analyze", response_model=FacialReportResponse)
 async def analyze_face(
     file: Optional[UploadFile] = File(None),
-    image_base64: Optional[str] = Form(None)
+    image_base64: Optional[str] = Form(None),
+    # 支持前端动态传递自定义 LLM 参数
+    custom_api_key: Optional[str] = Form(None),
+    custom_base_url: Optional[str] = Form(None),
+    custom_model: Optional[str] = Form(None)
 ):
     image_bytes = b""
     if file is not None:
@@ -44,7 +44,7 @@ async def analyze_face(
     # 2. RAG 知识检索
     retrieved_knowledge = rag_service.retrieve_knowledge(metrics, top_k=4)
 
-    # 3. 构造提示词 (注入丰富度量指标)
+    # 3. 构造提示词
     metrics_desc = (
         f"- 面部长宽比: {metrics.face_ratio} ({metrics.face_type})\n"
         f"- 下颌夹角: {metrics.jaw_angle_degree}° ({metrics.jaw_type})\n"
@@ -58,11 +58,14 @@ async def analyze_face(
     )
     prompt = build_analysis_prompt(metrics_desc, retrieved_knowledge)
 
-    # 4. 模型生成 (支持自动故障转移)
+    # 4. 模型生成 (支持前端自定义 LLM 与自动故障转移)
     report_content, provider_used = await provider_manager.generate_report_with_fallback(
         image_bytes=image_bytes,
         prompt=prompt,
-        metrics=metrics
+        metrics=metrics,
+        custom_base_url=custom_base_url,
+        custom_api_key=custom_api_key,
+        custom_model=custom_model
     )
 
     return FacialReportResponse(
