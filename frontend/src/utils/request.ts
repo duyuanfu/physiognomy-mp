@@ -6,10 +6,10 @@ export interface LlmConfig {
   model: string;
 }
 
-// 默认配置（用户指定：DeepSeek-V4.1-Flash）
+// 默认配置（不内置硬编码密钥，由用户自行在设置弹窗中输入或通过后端安全环境变量读取）
 export const DEFAULT_LLM_CONFIG: LlmConfig = {
   baseUrl: "https://api.deepseek.com",
-  apiKey: "sk-368bdbc412ea4f369721e644a0b330e2",
+  apiKey: "",
   model: "DeepSeek-V4.1-Flash"
 };
 

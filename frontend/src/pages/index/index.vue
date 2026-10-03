@@ -252,17 +252,11 @@ function openConfigModal() {
 
 function applyPreset(type: "deepseek" | "gemini") {
   if (type === "deepseek") {
-    tempConfig.value = {
-      baseUrl: "https://api.deepseek.com",
-      apiKey: "sk-368bdbc412ea4f369721e644a0b330e2",
-      model: "DeepSeek-V4.1-Flash"
-    };
+    tempConfig.value.baseUrl = "https://api.deepseek.com";
+    tempConfig.value.model = "DeepSeek-V4.1-Flash";
   } else if (type === "gemini") {
-    tempConfig.value = {
-      baseUrl: "http://localhost:8045/v1",
-      apiKey: "sk-f9ae12d50cca49a78ce1d7241caf6570",
-      model: "gemini-3.8-flash"
-    };
+    tempConfig.value.baseUrl = "http://localhost:8045/v1";
+    tempConfig.value.model = "gemini-3.8-flash";
   }
 }
 

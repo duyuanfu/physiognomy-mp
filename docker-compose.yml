@@ -13,11 +13,14 @@ services:
       - PORT=8000
       - HOST=0.0.0.0
       - ENV=production
-      # 以下配置可在服务器的 .env 中自定义覆盖
-      - GEMINI_API_KEY=sk-f9ae12d50cca49a78ce1d7241caf6570
-      - GEMINI_BASE_URL=http://host.docker.internal:8045/v1
-      - GEMINI_MODEL=gemini-3.8-flash
-      - PRIMARY_TIMEOUT_SECONDS=30.0
+      # 密钥通过服务器本地 .env 安全注入，绝不在代码中硬编码
+      - DEFAULT_API_KEY=${DEFAULT_API_KEY}
+      - DEFAULT_BASE_URL=${DEFAULT_BASE_URL:-https://api.deepseek.com}
+      - DEFAULT_MODEL=${DEFAULT_MODEL:-DeepSeek-V4.1-Flash}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - GEMINI_BASE_URL=${GEMINI_BASE_URL:-http://host.docker.internal:8045/v1}
+      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-3.8-flash}
+      - PRIMARY_TIMEOUT_SECONDS=35.0
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:

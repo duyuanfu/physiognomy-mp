@@ -146,7 +146,7 @@ nano .env
 配置大模型推理凭证（默认已预置 DeepSeek-V4.1-Flash）：
 ```ini
 DEFAULT_PROVIDER=custom_openai
-DEFAULT_API_KEY=sk-368bdbc412ea4f369721e644a0b330e2
+DEFAULT_API_KEY=your_deepseek_api_key_here
 DEFAULT_BASE_URL=https://api.deepseek.com
 DEFAULT_MODEL=DeepSeek-V4.1-Flash
 PRIMARY_TIMEOUT_SECONDS=35.0
