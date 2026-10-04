@@ -29,7 +29,9 @@ RUN pip install --no-cache-dir -r requirements.txt -i https://mirrors.aliyun.com
 # 复制模型文件与后端代码
 COPY face_landmarker.task .
 COPY app/ ./app/
-COPY .env.example .env
+
+# 创建基础 .env 文件 (优先读取 docker-compose 或系统环境变量)
+RUN touch .env
 
 # 暴露端口
 EXPOSE 8000
