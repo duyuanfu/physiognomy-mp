@@ -419,10 +419,14 @@ const executeUpload = async (filePath: string) => {
       appState.value = "report";
     }, 1600);
   } catch (error: any) {
-    // ★ 彻底删除“自带边界的高智感底色”，直接暴露真实报错！
+    // 立即重置状态回首页，绝不卡在扫描视图！
+    appState.value = "hero";
+
+    // 格式化错误内容，确保在微信 200 字安全阈值内，杜绝弹窗静默吞掉
+    const cleanMsg = (error.message || "大模型请求失败，请检查配置").slice(0, 180);
     uni.showModal({
-      title: "大模型调用未成功",
-      content: error.message || "请求失败",
+      title: "大模型调用提醒",
+      content: cleanMsg,
       showCancel: true,
       cancelText: "取消",
       confirmText: "去配置模型",
@@ -430,7 +434,6 @@ const executeUpload = async (filePath: string) => {
         if (res.confirm) {
           openConfigModal();
         }
-        appState.value = "hero";
       }
     });
   }
