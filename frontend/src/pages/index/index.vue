@@ -35,13 +35,11 @@
             >
               <!-- 覆盖在实时视频流上的高对比精细辅助线 -->
               <cover-view class="camera-guideline-overlay">
-                <!-- 四角金属刻度标 -->
                 <cover-view class="hud-corner-mark hud-tl"></cover-view>
                 <cover-view class="hud-corner-mark hud-tr"></cover-view>
                 <cover-view class="hud-corner-mark hud-bl"></cover-view>
                 <cover-view class="hud-corner-mark hud-br"></cover-view>
 
-                <!-- 核心面容椭圆框与精细三庭辅助线 -->
                 <cover-view class="guide-oval-ring">
                   <cover-view class="guide-axis-v"></cover-view>
                   <cover-view class="guide-h-line"></cover-view>
@@ -62,7 +60,6 @@
           <!-- B. 待机引导视窗 (3:4 大画幅人像比例) -->
           <view v-else class="capture-visual-box" @click="startEmbeddedCamera">
             <view class="visual-inner-ring">
-              <!-- 四角微刻度 -->
               <view class="box-corner box-tl"></view>
               <view class="box-corner box-tr"></view>
               <view class="box-corner box-bl"></view>
@@ -148,38 +145,23 @@
         <view class="modal-header">
           <view class="modal-title-group">
             <text class="modal-title arch-heading">大模型与推理接口配置</text>
-            <text class="modal-desc">可选择本地开发后端直连本地代理，或连接云端服务器</text>
+            <text class="modal-desc">内置多厂商快速切换 · 支持任意 OpenAI 兼容接口</text>
           </view>
           <text class="modal-close-x" @click="showConfigModal = false">✕</text>
-        </view>
-
-        <!-- 后端服务节点切换 (本地 127.0.0.1 还是 线上云端) -->
-        <view class="node-switch-row">
-          <text class="presets-title">后端服务节点：</text>
-          <view
-            class="node-pill"
-            :class="{ 'node-active': tempConfig.serverNode === 'local' }"
-            @click="tempConfig.serverNode = 'local'"
-          >电脑本地 (127.0.0.1:8000)</view>
-          <view
-            class="node-pill"
-            :class="{ 'node-active': tempConfig.serverNode === 'cloud' }"
-            @click="tempConfig.serverNode = 'cloud'"
-          >线上云端 (api.trythis.pw)</view>
         </view>
 
         <!-- 厂商一键预设选择卡片 -->
         <view class="vendor-selector-row">
           <view
             class="vendor-pill"
-            :class="{ 'vendor-active': selectedVendor === 'gemini' }"
-            @click="selectVendor('gemini')"
-          >本地 Gemini 3.8 (8045代理)</view>
-          <view
-            class="vendor-pill"
             :class="{ 'vendor-active': selectedVendor === 'deepseek' }"
             @click="selectVendor('deepseek')"
           >DeepSeek 官方</view>
+          <view
+            class="vendor-pill"
+            :class="{ 'vendor-active': selectedVendor === 'gemini' }"
+            @click="selectVendor('gemini')"
+          >Google Gemini</view>
           <view
             class="vendor-pill"
             :class="{ 'vendor-active': selectedVendor === 'qwen' }"
@@ -195,11 +177,11 @@
         <!-- 表单项 -->
         <view class="modal-form">
           <view class="form-field">
-            <text class="field-label">大模型接口地址 (Base URL)</text>
+            <text class="field-label">接口地址 (Base URL)</text>
             <input
               v-model="tempConfig.baseUrl"
               class="field-input mono-font"
-              placeholder="http://127.0.0.1:8045/v1"
+              placeholder="https://api.deepseek.com"
             />
           </view>
 
@@ -212,7 +194,7 @@
               v-model="tempConfig.apiKey"
               class="field-input mono-font"
               type="text"
-              placeholder="sk-..."
+              placeholder="可输入你的专属 sk-... 或留空"
             />
           </view>
 
@@ -221,7 +203,7 @@
             <input
               v-model="tempConfig.model"
               class="field-input mono-font"
-              placeholder="gemini-3.8-flash"
+              placeholder="deepseek-flash"
             />
           </view>
         </view>
@@ -286,35 +268,29 @@ const isCameraLive = ref(false);
 const showConfigModal = ref(false);
 const activeConfig = ref<LlmConfig>(getLlmConfig());
 const tempConfig = ref<LlmConfig>({ ...activeConfig.value });
-const selectedVendor = ref<"deepseek" | "gemini" | "qwen" | "custom">("gemini");
+const selectedVendor = ref<"deepseek" | "gemini" | "qwen" | "custom">("deepseek");
 
 const activeModelShortName = computed(() => {
-  const m = activeConfig.value.model || "Gemini";
-  if (m.toLowerCase().includes("gemini")) return "Gemini-3.8";
+  const m = activeConfig.value.model || "DeepSeek";
   if (m.toLowerCase().includes("deepseek")) return "DeepSeek";
+  if (m.toLowerCase().includes("gemini")) return "Gemini";
   if (m.toLowerCase().includes("qwen")) return "Qwen";
   return m.slice(0, 10);
 });
 
 function openConfigModal() {
   tempConfig.value = { ...activeConfig.value };
-  if (!tempConfig.value.serverNode) {
-    tempConfig.value.serverNode = "local";
-  }
   showConfigModal.value = true;
 }
 
 function selectVendor(type: "deepseek" | "gemini" | "qwen" | "custom") {
   selectedVendor.value = type;
-  if (type === "gemini") {
-    tempConfig.value.baseUrl = "http://127.0.0.1:8045/v1";
-    tempConfig.value.apiKey = "sk-f9ae12d50cca49a78ce1d7241caf6570";
-    tempConfig.value.model = "gemini-3.8-flash";
-    tempConfig.value.serverNode = "local"; // 自动联动指向本地后端，以连通本地 8045 代理
-  } else if (type === "deepseek") {
+  if (type === "deepseek") {
     tempConfig.value.baseUrl = "https://api.deepseek.com";
-    tempConfig.value.apiKey = "sk-368bdbc412ea4f369721e644a0b330e2";
     tempConfig.value.model = "deepseek-flash";
+  } else if (type === "gemini") {
+    tempConfig.value.baseUrl = "https://generativelanguage.googleapis.com";
+    tempConfig.value.model = "gemini-1.5-flash";
   } else if (type === "qwen") {
     tempConfig.value.baseUrl = "https://dashscope.aliyuncs.com/compatible-mode/v1";
     tempConfig.value.model = "qwen-vl-plus";
@@ -323,14 +299,14 @@ function selectVendor(type: "deepseek" | "gemini" | "qwen" | "custom") {
 
 function resetToDefaultConfig() {
   tempConfig.value = { ...DEFAULT_LLM_CONFIG };
-  selectedVendor.value = "gemini";
+  selectedVendor.value = "deepseek";
 }
 
 function saveUserConfig() {
   activeConfig.value = { ...tempConfig.value };
   saveLlmConfig(activeConfig.value);
   showConfigModal.value = false;
-  uni.showToast({ title: "配置已更新生效", icon: "success" });
+  uni.showToast({ title: "模型配置已更新生效", icon: "success" });
 }
 
 const instance = getCurrentInstance();
@@ -935,30 +911,6 @@ function handleExportPoster() {
   color: #9CA3AF;
   padding: 8rpx;
   line-height: 1;
-}
-
-/* 节点切换 */
-.node-switch-row {
-  display: flex;
-  flex-direction: column;
-  gap: 10rpx;
-}
-
-.node-pill {
-  font-size: 22rpx;
-  color: #4B5563;
-  background: #F4F4F6;
-  border: 1px solid #EAECEF;
-  padding: 10rpx 20rpx;
-  border-radius: 10rpx;
-  transition: all 0.2s ease;
-}
-
-.node-active {
-  color: #B89058;
-  background: #FDF9F2;
-  border-color: #B89058;
-  font-weight: 600;
 }
 
 .vendor-selector-row {
