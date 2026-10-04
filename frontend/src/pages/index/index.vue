@@ -22,6 +22,16 @@
           </view>
         </view>
 
+        <!-- ★ 醒目大模型报错提示横幅 (真机报错不再被吞，100% 页面常驻可见，点击直达配置) -->
+        <view v-if="lastErrorMessage" class="hero-error-banner" @click="openConfigModal">
+          <view class="error-banner-header">
+            <text class="warn-icon">⚠️</text>
+            <text class="warn-title">测算未完成（点击配置模型）</text>
+            <text class="warn-close" @click.stop="lastErrorMessage = ''">✕</text>
+          </view>
+          <text class="error-banner-desc">{{ lastErrorMessage }}</text>
+        </view>
+
         <!-- 核心主体：大尺寸 3:4 竖向人像取景卡片 (高度大于宽度，保证拍下整张脸) -->
         <view class="main-capture-card arch-card">
           <!-- A. 实时前置相机模式 (3:4 人像黄金高比 + 医美级精细辅助线) -->
@@ -263,6 +273,7 @@ type AppState = "hero" | "scanning" | "report";
 const appState = ref<AppState>("hero");
 const selectedImage = ref<string>("");
 const reportData = ref<FacialReportResponse | null>(null);
+const lastErrorMessage = ref<string>(""); // 页面常驻报错信息
 
 const isCameraLive = ref(false);
 
@@ -306,6 +317,7 @@ function resetToDefaultConfig() {
 function saveUserConfig() {
   activeConfig.value = { ...tempConfig.value };
   saveLlmConfig(activeConfig.value);
+  lastErrorMessage.value = ""; // 清空之前的报错
   showConfigModal.value = false;
   uni.showToast({ title: "模型配置已更新生效", icon: "success" });
 }
@@ -409,9 +421,28 @@ function processAndUploadImage(rawPath: string) {
   });
 }
 
+function formatCleanErrorText(raw: string): string {
+  const lower = (raw || "").toLowerCase();
+  if (lower.includes("429") || lower.includes("quota") || lower.includes("resource_exhausted")) {
+    return "Google 账号今日调用已达免费上限 (HTTP 429)。请在右上角设置中更换 Key 或明日再试。";
+  }
+  if (lower.includes("402") || lower.includes("insufficient balance")) {
+    return "DeepSeek 账户余额不足 (HTTP 402)。请充值或在右上角切换模型。";
+  }
+  if (lower.includes("401") || lower.includes("unauthorized") || lower.includes("invalid_api_key")) {
+    return "API 密钥未授权或无效 (HTTP 401)。请核对你的 Key。";
+  }
+  if (lower.includes("timeout") || lower.includes("超时")) {
+    return "网络连接或大模型推理超时，请检查网络后重试。";
+  }
+  // 过滤多余特殊符号，确保在微信 150 字安全阈值内
+  return raw.replace(/[\{\}\[\]\n\r"']/g, " ").slice(0, 140);
+}
+
 const executeUpload = async (filePath: string) => {
   selectedImage.value = filePath;
   appState.value = "scanning";
+  lastErrorMessage.value = ""; // 清空历史报错
   try {
     const response = await analyzeFaceImage(selectedImage.value);
     reportData.value = response;
@@ -422,20 +453,24 @@ const executeUpload = async (filePath: string) => {
     // 立即重置状态回首页，绝不卡在扫描视图！
     appState.value = "hero";
 
-    // 格式化错误内容，确保在微信 200 字安全阈值内，杜绝弹窗静默吞掉
-    const cleanMsg = (error.message || "大模型请求失败，请检查配置").slice(0, 180);
-    uni.showModal({
-      title: "大模型调用提醒",
-      content: cleanMsg,
-      showCancel: true,
-      cancelText: "取消",
-      confirmText: "去配置模型",
-      success: (res) => {
-        if (res.confirm) {
-          openConfigModal();
+    // 格式化错误内容
+    const cleanMsg = formatCleanErrorText(error.message || "大模型请求失败，请检查配置");
+    lastErrorMessage.value = cleanMsg; // 在首页显著展示报错
+
+    setTimeout(() => {
+      uni.showModal({
+        title: "大模型调用提醒",
+        content: cleanMsg,
+        showCancel: true,
+        cancelText: "取消",
+        confirmText: "去配置模型",
+        success: (res) => {
+          if (res.confirm) {
+            openConfigModal();
+          }
         }
-      }
-    });
+      });
+    }, 150);
   }
 };
 
@@ -621,6 +656,50 @@ function handleExportPoster() {
   font-size: 20rpx;
   color: #B89058;
   font-weight: 600;
+}
+
+/* ★ 醒目大模型报错提示横幅 (真机报错常驻展示) */
+.hero-error-banner {
+  width: 100%;
+  max-width: 620rpx;
+  background: #FEF2F2;
+  border: 1px solid #FECACA;
+  border-radius: 16rpx;
+  padding: 24rpx;
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
+  box-shadow: 0 4rpx 16rpx rgba(220, 38, 38, 0.08);
+}
+
+.error-banner-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.warn-icon {
+  font-size: 24rpx;
+  margin-right: 6rpx;
+}
+
+.warn-title {
+  font-size: 24rpx;
+  font-weight: 600;
+  color: #DC2626;
+  flex: 1;
+}
+
+.warn-close {
+  font-size: 26rpx;
+  color: #9CA3AF;
+  padding: 4rpx 12rpx;
+}
+
+.error-banner-desc {
+  font-size: 22rpx;
+  color: #B91C1C;
+  line-height: 1.5;
 }
 
 /* 核心互动卡片 */
