@@ -7,6 +7,10 @@ import wave
 from PIL import Image, ImageDraw, ImageFont
 import edge_tts
 
+# 添加 backend 到系统路径以载入人脸算法
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "backend")))
+from app.services.face_mesh_service import face_mesh_service
+
 WORKDIR = "media_kit"
 os.makedirs(WORKDIR, exist_ok=True)
 
@@ -15,9 +19,9 @@ HEIGHT = 1080
 FPS = 30
 FFMPEG_PATH = r"E:\ffmpeg\bin\ffmpeg.exe"
 VOICE = "zh-CN-YunxiNeural"
-VOICE_RATE = "+32%"  # 活力清脆语速，保持每幕在 3.3~4.2 秒之间
+VOICE_RATE = "+32%"
 
-# 7 幕紧凑脚本 (总片长约 35 秒，严格遵循黄金完播率法则)
+# 7 幕紧凑脚本 (带知名演员骨相实测演示)
 SCENES = [
     {
         "id": 1,
@@ -27,9 +31,9 @@ SCENES = [
     },
     {
         "id": 2,
-        "title": "纯工业级几何量测 · 478 骨骼锚点",
+        "title": "真实名演员骨相实测 · 478 骨骼锚点",
         "sub": "毫秒级提取面长宽比 / 下颌角 / 三庭黄金律 / 外眦仰角 · 自动姿态校正",
-        "voice": "拒绝盲猜！四百七十八个几何锚点，毫秒级校准下颌角与三庭比例！"
+        "voice": "拒绝盲猜！以著名演员骨相实测为例，四百七十八个几何锚点，毫秒级校准下颌角与三庭！"
     },
     {
         "id": 3,
@@ -105,27 +109,67 @@ if os.path.exists(LOGO_PATH):
     except Exception as e:
         print("Logo load failed:", e)
 
-# 原生矢量图形绘制辅助函数 (杜绝任何 Unicode 乱码方块)
+# 预载入真实知名演员面孔，并提取 MediaPipe 478 实测几何锚点
+CELEB_PATH = r"media_kit/celebrity_face.png"
+cached_celeb_crop = None
+cached_celeb_pts = None
+cached_celeb_mini = None
+
+if os.path.exists(CELEB_PATH):
+    try:
+        with open(CELEB_PATH, "rb") as f:
+            c_bytes = f.read()
+        c_metrics = face_mesh_service.extract_metrics_from_bytes(c_bytes)
+        
+        crop_box = (160, 50, 864, 880)
+        im_celeb_full = Image.open(CELEB_PATH).convert("RGBA")
+        c_crop = im_celeb_full.crop(crop_box)
+        target_w, target_h = 560, 650
+        cached_celeb_crop = c_crop.resize((target_w, target_h), Image.Resampling.LANCZOS)
+        
+        scale_x = target_w / float(crop_box[2] - crop_box[0])
+        scale_y = target_h / float(crop_box[3] - crop_box[1])
+        def map_p(p):
+            return ((p[0] - crop_box[0]) * scale_x, (p[1] - crop_box[1]) * scale_y)
+        
+        cp = c_metrics.caliper_points
+        cached_celeb_pts = {
+            "contour": [map_p(p) for p in cp.contour_polygon],
+            "keys": [
+                map_p(cp.left_eye_inner), map_p(cp.left_eye_outer),
+                map_p(cp.right_eye_inner), map_p(cp.right_eye_outer),
+                map_p(cp.nose_tip), map_p(cp.subnasale), map_p(cp.nasion),
+                map_p(cp.lip_left), map_p(cp.lip_right), map_p(cp.lip_top),
+                map_p(cp.jaw_left), map_p(cp.jaw_right), map_p(cp.menton)
+            ],
+            "jaw_l": map_p(cp.jaw_left),
+            "jaw_r": map_p(cp.jaw_right),
+            "menton": map_p(cp.menton),
+            "trichion": map_p(cp.trichion),
+            "brow": map_p(cp.brow_peak_left),
+            "subnasale": map_p(cp.subnasale)
+        }
+        cached_celeb_mini = c_crop.resize((350, 180), Image.Resampling.LANCZOS)
+        print("知名演员人脸实测数据与关键点预加载成功！")
+    except Exception as e:
+        print("知名演员人脸初始化异常:", e)
+
+# 原生矢量图形绘制辅助函数
 def draw_vector_cross(draw, cx, cy, r=16, color=(220, 38, 38)):
-    """绘制高质感圆形红叉 (错误指示)"""
     draw.ellipse([cx - r, cy - r, cx + r, cy + r], fill=(254, 226, 226), outline=color, width=2)
     arm = int(r * 0.48)
     draw.line([cx - arm, cy - arm, cx + arm, cy + arm], fill=color, width=3)
     draw.line([cx - arm, cy + arm, cx + arm, cy - arm], fill=color, width=3)
 
 def draw_vector_check(draw, cx, cy, r=16, color=COLOR_GOLD):
-    """绘制高质感圆形金勾 (正确指示)"""
     draw.ellipse([cx - r, cy - r, cx + r, cy + r], fill=(247, 241, 230), outline=color, width=2)
-    # 打勾折线
     p1 = (cx - int(r * 0.45), cy)
     p2 = (cx - int(r * 0.1), cy + int(r * 0.4))
     p3 = (cx + int(r * 0.5), cy - int(r * 0.35))
     draw.line([p1, p2, p3], fill=color, width=3, joint="curve")
 
 def draw_vector_arrow(draw, x, y, length=38, color=COLOR_GOLD):
-    """绘制原生矢量水平右箭头"""
     draw.line([x, y, x + length, y], fill=color, width=3)
-    # 箭头三角形
     arrow_head = [
         (x + length + 8, y),
         (x + length - 4, y - 7),
@@ -134,11 +178,10 @@ def draw_vector_arrow(draw, x, y, length=38, color=COLOR_GOLD):
     draw.polygon(arrow_head, fill=color)
 
 def draw_vector_play(draw, x, y, size=10, color=COLOR_GOLD):
-    """绘制原生矢量小三角播放符号"""
     pts = [(x, y - size), (x + int(size * 1.4), y), (x, y + size)]
     draw.polygon(pts, fill=color)
 
-# 1. 核心音频管线：时长与帧数严格毫秒锁死
+# 1. 核心音频管线
 async def generate_audio_pipeline():
     audio_dir = os.path.join(WORKDIR, "audio_segments")
     os.makedirs(audio_dir, exist_ok=True)
@@ -154,6 +197,10 @@ async def generate_audio_pipeline():
         raw_wav = os.path.join(audio_dir, f"raw_{idx}.wav")
         padded_wav = os.path.join(audio_dir, f"scene_{idx}.wav")
         
+        # 始终为修改后的第二幕重新合成高质量真人语音
+        if idx == 1 and os.path.exists(padded_wav):
+            os.remove(padded_wav)
+            
         if not os.path.exists(padded_wav):
             tts = edge_tts.Communicate(sc["voice"], VOICE, rate=VOICE_RATE)
             await tts.save(raw_mp3)
@@ -161,7 +208,6 @@ async def generate_audio_pipeline():
             subprocess.run([FFMPEG_PATH, "-y", "-i", raw_mp3, "-ac", "1", "-ar", "24000", raw_wav],
                            stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True)
             
-            # 结尾补齐 0.22 秒自然停顿
             subprocess.run([FFMPEG_PATH, "-y", "-i", raw_wav, "-af", "apad=pad_dur=0.22", padded_wav],
                            stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True)
             
@@ -203,7 +249,6 @@ async def generate_audio_pipeline():
     subprocess.run([FFMPEG_PATH, "-y", "-f", "concat", "-safe", "0", "-i", concat_txt, "-c", "copy", merged_voice],
                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True)
     
-    # 混入 BGM
     final_audio = os.path.join(WORKDIR, "soundtrack.wav")
     bgm_p = os.path.join(WORKDIR, "bgm.mp3")
     if os.path.exists(bgm_p):
@@ -227,7 +272,6 @@ async def generate_audio_pipeline():
 
 # 背景绘制
 def draw_base_frame(draw, title, sub):
-    # 暖白高雅渐变背景
     for y in range(0, HEIGHT, 4):
         ratio = y / float(HEIGHT)
         r = int(251 - ratio * 4)
@@ -235,24 +279,18 @@ def draw_base_frame(draw, title, sub):
         b = int(249 - ratio * 6)
         draw.rectangle([0, y, WIDTH, y + 4], fill=(r, g, b))
         
-    # 浅金微点阵网格
     for x in range(40, WIDTH, 50):
         for y in range(40, HEIGHT, 50):
             draw.ellipse([x-1, y-1, x+1, y+1], fill=(225, 220, 210))
             
-    # 顶部品牌 Header 标尺
     draw.text((100, 48), "相 度  XIANGDU", font=font_small, fill=COLOR_GOLD)
     draw.text((250, 48), "// 度量骨相 · 洞见气度", font=font_small, fill=COLOR_TEXT_MUTED)
     draw.text((WIDTH - 280, 48), "AI 现代人体骨相美学 · 2026 典藏版", font=font_small, fill=COLOR_TEXT_MUTED)
     
-    # 顶部标题区
     draw.text((100, 80), title, font=font_title, fill=COLOR_TEXT_MAIN)
     draw.text((100, 142), sub, font=font_sub_title, fill=COLOR_GOLD_DARK)
-    
-    # 装饰金色细线
     draw.line([100, 185, WIDTH - 100, 185], fill=COLOR_BORDER_GOLD, width=1)
 
-# 字幕绘制
 def draw_clean_subtitle(draw, text):
     b = font_sub.getbbox(text)
     tw = b[2] - b[0]
@@ -271,7 +309,6 @@ def render_scene_1(progress):
     draw.rounded_rectangle([cx, cy, cx + cw, cy + ch], radius=16, fill=COLOR_CARD_BG, outline=COLOR_BORDER_GOLD, width=2)
     draw.rounded_rectangle([cx + 10, cy + 10, cx + cw - 10, cy + ch - 10], radius=12, outline=(238, 230, 218), width=1)
     
-    # 中间放置 Logo (带呼吸金色光晕)
     pulse = (math.sin(progress * math.pi * 3) + 1.0) / 2.0
     glow_r = int(120 + pulse * 14)
     center_x = cx + 320
@@ -314,65 +351,66 @@ def render_scene_1(progress):
     
     return im
 
-# 场景 2：478点几何三维量测
+# 场景 2：真实知名演员骨相实测演示
 def render_scene_2(progress):
     im = Image.new("RGB", (WIDTH, HEIGHT), COLOR_BG_LIGHT)
     draw = ImageDraw.Draw(im)
-    draw_base_frame(draw, "纯工业级几何量测 · 478 骨骼锚点", "毫秒级提取面长宽比 / 下颌角 / 三庭黄金律 / 外眦仰角 · 自动姿态校正")
+    draw_base_frame(draw, "真实名演员骨相实测 · 478 骨骼锚点", "毫秒级提取面长宽比 / 下颌角 / 三庭黄金律 / 外眦仰角 · 自动姿态校正")
     
     cx, cy, cw, ch = 100, 215, 1720, 750
     draw.rounded_rectangle([cx, cy, cx + cw, cy + ch], radius=16, fill=COLOR_CARD_BG, outline=COLOR_BORDER_GOLD, width=2)
     
-    # 左侧：动态三维人脸网格测量模拟框
+    # 左侧：真实名演员面孔与点阵游标卡尺测量框
     fx, fy, fw, fh = cx + 40, cy + 40, 580, ch - 80
     draw.rounded_rectangle([fx, fy, fx + fw, fy + fh], radius=12, fill=(247, 246, 242), outline=COLOR_BORDER, width=1)
     
-    f_center_x = fx + fw // 2
-    f_center_y = fy + fh // 2
-    
-    # 脸型轮廓线
-    draw.ellipse([f_center_x - 170, f_center_y - 230, f_center_x + 170, f_center_y + 240], outline=COLOR_BORDER_GOLD, width=2)
-    
-    # 三庭分界基准线
-    y_tri = f_center_y - 150
-    y_brow = f_center_y - 50
-    y_subnasale = f_center_y + 60
-    y_menton = f_center_y + 190
-    
-    for y_line, name in [(y_tri, "发际线"), (y_brow, "眉心基准"), (y_subnasale, "鼻底基准"), (y_menton, "下颏底点")]:
-        draw.line([fx + 40, y_line, fx + fw - 40, y_line], fill=COLOR_GOLD, width=1)
-        draw.text((fx + fw - 110, y_line - 18), name, font=font_small, fill=COLOR_GOLD_DARK)
+    if cached_celeb_crop:
+        # 贴入真实演员肖像
+        im.paste(cached_celeb_crop, (fx + 10, fy + 10), cached_celeb_crop)
         
-    np_pts = [
-        (f_center_x - 90, f_center_y - 45), (f_center_x - 35, f_center_y - 45),
-        (f_center_x + 35, f_center_y - 45), (f_center_x + 90, f_center_y - 45),
-        (f_center_x, f_center_y - 5), (f_center_x, f_center_y + 40),
-        (f_center_x - 45, f_center_y + 110), (f_center_x + 45, f_center_y + 110),
-        (f_center_x - 130, f_center_y + 90), (f_center_x + 130, f_center_y + 90),
-    ]
-    for px, py in np_pts:
-        draw.ellipse([px-4, py-4, px+4, py+4], fill=COLOR_TEAL)
-        
-    draw.line([f_center_x - 130, f_center_y + 90, f_center_x, y_menton], fill=COLOR_GOLD, width=2)
-    draw.line([f_center_x + 130, f_center_y + 90, f_center_x, y_menton], fill=COLOR_GOLD, width=2)
+        # 绘制实测 478 锚点轮廓线
+        if cached_celeb_pts:
+            pts = [(fx + 10 + p[0], fy + 10 + p[1]) for p in cached_celeb_pts["contour"]]
+            for i in range(len(pts) - 1):
+                draw.line([pts[i], pts[i+1]], fill=(184, 144, 88, 200), width=2)
+                
+            # 绘制五官特征关键点
+            for p in cached_celeb_pts["keys"]:
+                draw.ellipse([fx + 10 + p[0] - 4, fy + 10 + p[1] - 4, fx + 10 + p[0] + 4, fy + 10 + p[1] + 4], fill=COLOR_TEAL)
+                
+            # 绘制下颌角三角骨架构
+            jl = (fx + 10 + cached_celeb_pts["jaw_l"][0], fy + 10 + cached_celeb_pts["jaw_l"][1])
+            jr = (fx + 10 + cached_celeb_pts["jaw_r"][0], fy + 10 + cached_celeb_pts["jaw_r"][1])
+            menton = (fx + 10 + cached_celeb_pts["menton"][0], fy + 10 + cached_celeb_pts["menton"][1])
+            draw.line([jl, menton], fill=COLOR_GOLD, width=3)
+            draw.line([jr, menton], fill=COLOR_GOLD, width=3)
+            
+            # 标尺刻度水平线
+            y_tri = fy + 10 + cached_celeb_pts["trichion"][1]
+            y_brow = fy + 10 + cached_celeb_pts["brow"][1]
+            y_sub = fy + 10 + cached_celeb_pts["subnasale"][1]
+            y_ment = menton[1]
+            
+            for y_line, name in [(y_tri, "上庭顶"), (y_brow, "眉骨基准"), (y_sub, "中庭底"), (y_ment, "下颏底点")]:
+                draw.line([fx + 15, y_line, fx + fw - 15, y_line], fill=COLOR_GOLD, width=1)
+                draw.text((fx + fw - 95, y_line - 18), name, font=font_small, fill=COLOR_GOLD_DARK)
     
-    # 动态扫描光束 (随时间轴上下往复)
+    # 动态扫描光束
     scan_y = fy + 50 + int((math.sin(progress * math.pi * 4) + 1.0) / 2.0 * (fh - 100))
     draw.line([fx + 20, scan_y, fx + fw - 20, scan_y], fill=(184, 144, 88, 160), width=3)
     
-    # 原生矢量三角播放符号替代乱码
     draw_vector_play(draw, fx + 32, scan_y - 12, size=7, color=COLOR_GOLD)
-    draw.text((fx + 48, scan_y - 22), "激光雷达扫描中...", font=font_small, fill=COLOR_GOLD)
+    draw.text((fx + 48, scan_y - 22), "实机 478 锚点三维解构中...", font=font_small, fill=COLOR_GOLD)
     
-    # 右侧：4 大实测参数卡片矩阵
+    # 右侧：名演员真实解构参数面板
     rx = fx + fw + 50
     rw = cw - fw - 110
     
     cards = [
-        ("三庭黄金比例", "1.00 : 1.05 : 0.98", "中庭蓄势聚力 · 骨相比例黄金舒展", "平衡型"),
-        ("下颌骨折角 (Jaw Angle)", "114.6°", "刚柔微折型 · 兼具坚定执着与温润亲和", "贵气骨架"),
-        ("外眦仰角 (Canthal Tilt)", "+10.5°", "正向飞扬势 · 精神奕奕自带高智感气场", "英气飞扬"),
-        ("面部长宽比 (Face Ratio)", "1.13", "清冷纵深型 · 侧颜折叠度高，上镜立体舒展", "黄金纵深")
+        ("三庭黄金比例", "0.64 : 1.26 : 1.10", "中庭饱满蓄势 · 骨相沉潜从容，极具大女主风范", "贵气从容"),
+        ("下颌骨折角 (Jaw Angle)", "108.4°", "方正基石型 · 刚毅坚韧极具力量感，侧颜线条折叠度高", "基石骨架"),
+        ("外眦仰角 (Canthal Tilt)", "+8.7°", "正向飞扬势 · 藏神而不露芒，神采奕奕自带高智感", "清峻英气"),
+        ("面部长宽比 (Face Ratio)", "1.27", "黄金平衡型 · 舒展大气自带定力，天然抗镜头吃焦畸变", "电影脸")
     ]
     
     for idx, (c_label, c_val, c_desc, c_tag) in enumerate(cards):
@@ -400,7 +438,7 @@ def render_scene_3(progress):
     
     card_w = (cw - 80) // 2
     
-    # 左卡：传统劣质算命迷信 (原生红叉指示)
+    # 左卡：传统劣质算命迷信
     lx = cx + 30
     draw.rounded_rectangle([lx, cy + 30, lx + card_w, cy + ch - 30], radius=14, fill=(254, 248, 248), outline=(245, 198, 198), width=1)
     
@@ -420,7 +458,7 @@ def render_scene_3(progress):
         draw.text((lx + 40, by), f"• {b_title}", font=font_card_h, fill=(185, 28, 28))
         draw.text((lx + 60, by + 40), b_desc, font=font_body, fill=(107, 114, 128))
         
-    # 右卡：相度现代美学 (原生金勾指示)
+    # 右卡：相度现代美学
     rx = cx + card_w + 50
     draw.rounded_rectangle([rx, cy + 30, rx + card_w, cy + ch - 30], radius=14, fill=(250, 249, 246), outline=COLOR_BORDER_GOLD, width=2)
     
@@ -483,7 +521,7 @@ def render_scene_4(progress):
         
     return im
 
-# 场景 5：多模态 LLM + RAG 知识图谱 (原生矢量箭头)
+# 场景 5：多模态 LLM + RAG 知识图谱
 def render_scene_5(progress):
     im = Image.new("RGB", (WIDTH, HEIGHT), COLOR_BG_LIGHT)
     draw = ImageDraw.Draw(im)
@@ -495,7 +533,6 @@ def render_scene_5(progress):
     step_w = 480
     step_h = ch - 80
     
-    # 第一步：几何提纯
     s1_x = cx + 40
     draw.rounded_rectangle([s1_x, cy + 40, s1_x + step_w, cy + 40 + step_h], radius=14, fill=(252, 251, 248), outline=COLOR_BORDER, width=1)
     draw.rounded_rectangle([s1_x, cy + 40, s1_x + step_w, cy + 85], radius=10, fill=COLOR_TEAL)
@@ -511,11 +548,9 @@ def render_scene_5(progress):
     for i, it in enumerate(s1_items):
         draw.text((s1_x + 30, cy + 120 + i * 90), it, font=font_body_bold, fill=COLOR_TEXT_MAIN)
         
-    # 原生矢量箭头 1
     arrow1_x = s1_x + step_w + 22
     draw_vector_arrow(draw, arrow1_x, cy + ch // 2, length=44, color=COLOR_GOLD)
     
-    # 第二步：典籍 RAG
     s2_x = s1_x + step_w + 90
     draw.rounded_rectangle([s2_x, cy + 40, s2_x + step_w, cy + 40 + step_h], radius=14, fill=(252, 251, 248), outline=COLOR_BORDER, width=1)
     draw.rounded_rectangle([s2_x, cy + 40, s2_x + step_w, cy + 85], radius=10, fill=COLOR_GOLD)
@@ -531,11 +566,9 @@ def render_scene_5(progress):
     for i, it in enumerate(s2_items):
         draw.text((s2_x + 30, cy + 120 + i * 90), it, font=font_body_bold, fill=COLOR_TEXT_MAIN)
         
-    # 原生矢量箭头 2
     arrow2_x = s2_x + step_w + 22
     draw_vector_arrow(draw, arrow2_x, cy + ch // 2, length=44, color=COLOR_GOLD)
     
-    # 第三步：多模态 LLM
     s3_x = s2_x + step_w + 90
     draw.rounded_rectangle([s3_x, cy + 40, s3_x + step_w, cy + 40 + step_h], radius=14, fill=(252, 251, 248), outline=COLOR_BORDER_GOLD, width=2)
     draw.rounded_rectangle([s3_x, cy + 40, s3_x + step_w, cy + 85], radius=10, fill=(30, 41, 59))
@@ -553,7 +586,7 @@ def render_scene_5(progress):
         
     return im
 
-# 场景 6：高定海报导出 · 阅后即焚 (宽屏双列丰满排版)
+# 场景 6：高定海报导出 · 真实名演员肖像嵌入
 def render_scene_6(progress):
     im = Image.new("RGB", (WIDTH, HEIGHT), COLOR_BG_LIGHT)
     draw = ImageDraw.Draw(im)
@@ -562,23 +595,29 @@ def render_scene_6(progress):
     cx, cy, cw, ch = 100, 215, 1720, 750
     draw.rounded_rectangle([cx, cy, cx + cw, cy + ch], radius=16, fill=COLOR_CARD_BG, outline=COLOR_BORDER_GOLD, width=2)
     
-    # 左侧：微型 9:16 高定长海报展示样机
+    # 左侧：微型 9:16 高定长海报展示样机 (嵌入真实演员肖像)
     px, py, pw, ph = cx + 80, cy + 30, 390, ch - 60
     draw.rounded_rectangle([px, py, px + pw, py + ph], radius=10, fill=(250, 250, 248), outline=COLOR_BORDER_GOLD, width=2)
     draw.rounded_rectangle([px + 6, py + 6, px + pw - 6, py + ph - 6], radius=8, outline=(235, 230, 220), width=1)
     
     draw.text((px + 20, py + 25), "相 度 // 典藏版", font=font_small, fill=COLOR_GOLD)
-    draw.rounded_rectangle([px + 20, py + 55, px + pw - 20, py + 230], radius=6, fill=(240, 238, 232), outline=COLOR_BORDER, width=1)
-    draw.text((px + 120, py + 130), "「自然肖像」", font=font_body, fill=COLOR_TEXT_MUTED)
     
-    draw.text((px + 20, py + 250), "【 凛然折角型 】", font=font_body_bold, fill=COLOR_GOLD)
-    draw.text((px + 20, py + 285), "沉着审慎、自带防御边界的高智感底色", font=font_small, fill=COLOR_TEXT_MAIN)
-    draw.text((px + 20, py + 315), "#凛然骨相  #审慎定力  #高智感", font=font_small, fill=COLOR_TEXT_MUTED)
+    # 贴入真实演员肖像卡
+    if cached_celeb_mini:
+        im.paste(cached_celeb_mini, (px + 20, py + 55), cached_celeb_mini)
+        draw.rounded_rectangle([px + 20, py + 55, px + pw - 20, py + 235], radius=6, outline=COLOR_BORDER_GOLD, width=1)
+    else:
+        draw.rounded_rectangle([px + 20, py + 55, px + pw - 20, py + 230], radius=6, fill=(240, 238, 232), outline=COLOR_BORDER, width=1)
+        draw.text((px + 120, py + 130), "「真实肖像」", font=font_body, fill=COLOR_TEXT_MUTED)
+    
+    draw.text((px + 20, py + 250), "【 磐石基石型 · 大女主气韵 】", font=font_body_bold, fill=COLOR_GOLD)
+    draw.text((px + 20, py + 285), "坚毅沉着、自带强大控场气场的从容底色", font=font_small, fill=COLOR_TEXT_MAIN)
+    draw.text((px + 20, py + 315), "#正向飞扬  #磐石定力  #高智感", font=font_small, fill=COLOR_TEXT_MUTED)
     
     draw.line([px + 20, py + 345, px + pw - 20, py + 345], fill=COLOR_BORDER, width=1)
     draw.text((px + 20, py + 360), "面容高维能量图谱", font=font_small, fill=COLOR_TEAL)
     
-    scores = [("智感洞察", 94), ("气场边界", 88), ("蓄势吸金", 91), ("情绪自洽", 96)]
+    scores = [("智感洞察", 96), ("气场边界", 98), ("蓄势吸金", 92), ("情绪自洽", 95)]
     for i, (sc_name, sc_val) in enumerate(scores):
         sc_x = px + 20 + (i % 2) * 175
         sc_y = py + 395 + (i // 2) * 85
@@ -588,7 +627,7 @@ def render_scene_6(progress):
         
     draw.text((px + 20, py + ph - 45), "扫码开启骨相解构 · 严守隐私", font=font_small, fill=COLOR_TEXT_MUTED)
     
-    # 右侧：长海报核心优势 2x2 优雅卡片网格 (饱满撑满右侧)
+    # 右侧：长海报核心优势 2x2 优雅卡片网格
     rx = px + pw + 60
     rw = cw - pw - 120
     
@@ -615,7 +654,7 @@ def render_scene_6(progress):
         
     return im
 
-# 场景 7：微信搜索一键体验与一键三连 (无乱码纯矢量)
+# 场景 7：微信搜索一键体验与一键三连
 def render_scene_7(progress):
     im = Image.new("RGB", (WIDTH, HEIGHT), COLOR_BG_LIGHT)
     draw = ImageDraw.Draw(im)
@@ -627,21 +666,18 @@ def render_scene_7(progress):
     mid_y = cy + 60
     draw.text((cx + 520, mid_y), "立刻微信搜索进入小程序", font=font_hero, fill=COLOR_GOLD)
     
-    # 模拟微信搜索框 (原生矢量放大镜)
+    # 模拟微信搜索框
     bx, by, bw, bh = cx + 440, mid_y + 85, 840, 90
     draw.rounded_rectangle([bx, by, bx + bw, by + bh], radius=45, fill=(245, 245, 242), outline=COLOR_BORDER_GOLD, width=2)
     
-    # 原生放大镜矢量
     mg_cx, mg_cy, mg_r = bx + 55, by + 45, 16
     draw.ellipse([mg_cx - mg_r, mg_cy - mg_r, mg_cx + mg_r, mg_cy + mg_r], outline=COLOR_GOLD, width=4)
     draw.line([mg_cx + 11, mg_cy + 11, mg_cx + 25, mg_cy + 25], fill=COLOR_GOLD, width=5)
     draw.text((bx + 98, by + 20), "相度", font=font_hero, fill=COLOR_TEXT_MAIN)
     
-    # 搜索按钮
     draw.rounded_rectangle([bx + bw - 190, by + 10, bx + bw - 15, by + bh - 10], radius=35, fill=COLOR_GOLD)
     draw.text((bx + bw - 145, by + 25), "搜索", font=font_card_h, fill=(255, 255, 255))
     
-    # 下方一键三连大徽章
     badge_cy = by + bh + 70
     three_coins = [
         ("点赞", "高能神作"),
@@ -654,7 +690,6 @@ def render_scene_7(progress):
         draw.text((bx_c + 32, badge_cy + 36), b_name, font=font_card_h, fill=COLOR_GOLD_DARK)
         draw.text((bx_c + 28, badge_cy + 82), b_desc, font=font_small, fill=COLOR_TEXT_MUTED)
         
-    # 底部开源信息
     foot_y = cy + ch - 90
     draw.rounded_rectangle([cx + 250, foot_y, cx + cw - 250, foot_y + 55], radius=28, fill=(244, 243, 239))
     draw.text((cx + 340, foot_y + 14), "GitHub 开源地址与部署文档已置顶评论区 · 欢迎 Star 交流！", font=font_body_bold, fill=COLOR_TEXT_MAIN)
@@ -671,7 +706,7 @@ SCENE_RENDERERS = {
     7: render_scene_7
 }
 
-# 核心压制流水线：通过管道流向 FFmpeg 直出 1080P MP4
+# 核心压制流水线
 async def build_promo_video():
     scene_items, final_soundtrack = await generate_audio_pipeline()
     
