@@ -4,19 +4,21 @@ export interface LlmConfig {
   baseUrl: string;
   apiKey: string;
   model: string;
+  serverNode?: "local" | "cloud"; // 运行节点：本地(127.0.0.1) 或 线上云端(api.trythis.pw)
 }
 
-// 默认配置（不内置硬编码密钥，由用户自行在设置弹窗中输入或通过后端安全环境变量读取）
+// 默认配置
 export const DEFAULT_LLM_CONFIG: LlmConfig = {
   baseUrl: "https://api.deepseek.com",
   apiKey: "",
-  model: "deepseek-flash"
+  model: "deepseek-flash",
+  serverNode: "local"
 };
 
 export function getLlmConfig(): LlmConfig {
   try {
     const saved = uni.getStorageSync("llm_config");
-    if (saved && saved.apiKey && saved.baseUrl && saved.model) {
+    if (saved && saved.baseUrl && saved.model) {
       return saved;
     }
   } catch (e) {}
@@ -27,27 +29,35 @@ export function saveLlmConfig(cfg: LlmConfig) {
   uni.setStorageSync("llm_config", cfg);
 }
 
-// 智能自适应调度后端地址
-function resolveApiBaseUrl(): string {
+// 智能调度后端地址：
+// - 若用户选择“本地后端”或在微信开发者工具中调试本地代理，走 http://127.0.0.1:8000 (可畅通访问本地8045代理)
+// - 若用户选择“线上云端”或在手机外网使用，走 https://api.trythis.pw
+export function resolveApiBaseUrl(): string {
+  const cfg = getLlmConfig();
+  if (cfg.serverNode === "cloud") {
+    return "https://api.trythis.pw/api/v1";
+  }
+  if (cfg.serverNode === "local") {
+    return "http://127.0.0.1:8000/api/v1";
+  }
   try {
     const sys = uni.getSystemInfoSync();
     if (sys && sys.platform === "devtools") {
-      return "https://api.trythis.pw/api/v1";
+      return "http://127.0.0.1:8000/api/v1";
     }
   } catch (e) {}
   return "https://api.trythis.pw/api/v1";
 }
 
-const BASE_URL = resolveApiBaseUrl();
-
 function fallbackPostBase64(filePath: string, cfg: LlmConfig): Promise<FacialReportResponse> {
+  const targetBaseUrl = resolveApiBaseUrl();
   return new Promise((resolve, reject) => {
     try {
       const fs = (uni as any).getFileSystemManager();
       const base64Data = fs.readFileSync(filePath, "base64");
 
       uni.request({
-        url: `${BASE_URL}/analyze`,
+        url: `${targetBaseUrl}/analyze`,
         method: "POST",
         header: {
           "content-type": "application/x-www-form-urlencoded"
@@ -78,10 +88,11 @@ function fallbackPostBase64(filePath: string, cfg: LlmConfig): Promise<FacialRep
 
 export function analyzeFaceImage(filePath: string): Promise<FacialReportResponse> {
   const cfg = getLlmConfig();
+  const targetBaseUrl = resolveApiBaseUrl();
 
   return new Promise((resolve, reject) => {
     uni.uploadFile({
-      url: `${BASE_URL}/analyze`,
+      url: `${targetBaseUrl}/analyze`,
       filePath: filePath,
       name: "file",
       formData: {

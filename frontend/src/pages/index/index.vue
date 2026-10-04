@@ -124,12 +124,12 @@
         </view>
       </view>
 
-      <!-- 状态 2: 扫描仪式感动效 (带平滑过渡与入场浮动) -->
+      <!-- 状态 2: 扫描仪式感动效 -->
       <view v-else-if="appState === 'scanning'" key="scanning" class="view-transition-enter">
         <ScanCeremonyOverlay :imageSrc="selectedImage" />
       </view>
 
-      <!-- 状态 3: 杂志级解读报告呈现 (带优雅层叠滑入过渡动效) -->
+      <!-- 状态 3: 杂志级解读报告呈现 -->
       <view v-else-if="appState === 'report' && reportData" key="report" class="view-transition-enter">
         <EditorialReportCard
           :imageSrc="selectedImage"
@@ -142,29 +142,44 @@
       </view>
     </transition>
 
-    <!-- 前端统一多厂商模型配置弹窗 (预置厂商选择 + 兜底提示) -->
+    <!-- 前端统一多厂商模型配置弹窗 -->
     <view v-if="showConfigModal" class="config-modal-mask">
       <view class="config-modal-card arch-card">
         <view class="modal-header">
           <view class="modal-title-group">
             <text class="modal-title arch-heading">大模型与推理接口配置</text>
-            <text class="modal-desc">内置多厂商快速切换 · 支持任意 OpenAI 兼容接口</text>
+            <text class="modal-desc">可选择本地开发后端直连本地代理，或连接云端服务器</text>
           </view>
           <text class="modal-close-x" @click="showConfigModal = false">✕</text>
+        </view>
+
+        <!-- 后端服务节点切换 (本地 127.0.0.1 还是 线上云端) -->
+        <view class="node-switch-row">
+          <text class="presets-title">后端服务节点：</text>
+          <view
+            class="node-pill"
+            :class="{ 'node-active': tempConfig.serverNode === 'local' }"
+            @click="tempConfig.serverNode = 'local'"
+          >电脑本地 (127.0.0.1:8000)</view>
+          <view
+            class="node-pill"
+            :class="{ 'node-active': tempConfig.serverNode === 'cloud' }"
+            @click="tempConfig.serverNode = 'cloud'"
+          >线上云端 (api.trythis.pw)</view>
         </view>
 
         <!-- 厂商一键预设选择卡片 -->
         <view class="vendor-selector-row">
           <view
             class="vendor-pill"
+            :class="{ 'vendor-active': selectedVendor === 'gemini' }"
+            @click="selectVendor('gemini')"
+          >本地 Gemini 3.8 (8045代理)</view>
+          <view
+            class="vendor-pill"
             :class="{ 'vendor-active': selectedVendor === 'deepseek' }"
             @click="selectVendor('deepseek')"
           >DeepSeek 官方</view>
-          <view
-            class="vendor-pill"
-            :class="{ 'vendor-active': selectedVendor === 'gemini' }"
-            @click="selectVendor('gemini')"
-          >Google Gemini</view>
           <view
             class="vendor-pill"
             :class="{ 'vendor-active': selectedVendor === 'qwen' }"
@@ -180,11 +195,11 @@
         <!-- 表单项 -->
         <view class="modal-form">
           <view class="form-field">
-            <text class="field-label">接口地址 (Base URL)</text>
+            <text class="field-label">大模型接口地址 (Base URL)</text>
             <input
               v-model="tempConfig.baseUrl"
               class="field-input mono-font"
-              placeholder="https://api.deepseek.com"
+              placeholder="http://127.0.0.1:8045/v1"
             />
           </view>
 
@@ -197,7 +212,7 @@
               v-model="tempConfig.apiKey"
               class="field-input mono-font"
               type="text"
-              placeholder="可输入你的专属 sk-... 或留空"
+              placeholder="sk-..."
             />
           </view>
 
@@ -206,7 +221,7 @@
             <input
               v-model="tempConfig.model"
               class="field-input mono-font"
-              placeholder="DeepSeek-V4.1-Flash"
+              placeholder="gemini-3.8-flash"
             />
           </view>
         </view>
@@ -244,7 +259,6 @@ import {
 import { drawAndSavePoster } from "../../utils/poster";
 import { FacialReportResponse } from "../../types/report";
 
-// 微信官方转发给好友
 onShareAppMessage(() => {
   return {
     title: "相度 · 度量骨相，洞见气度",
@@ -253,7 +267,6 @@ onShareAppMessage(() => {
   };
 });
 
-// 微信官方分享到朋友圈
 onShareTimeline(() => {
   return {
     title: "相度 · 现代面容骨相量度与神态美学",
@@ -268,36 +281,40 @@ const appState = ref<AppState>("hero");
 const selectedImage = ref<string>("");
 const reportData = ref<FacialReportResponse | null>(null);
 
-// 嵌入式前置相机
 const isCameraLive = ref(false);
 
-// 模型配置状态管理
 const showConfigModal = ref(false);
 const activeConfig = ref<LlmConfig>(getLlmConfig());
 const tempConfig = ref<LlmConfig>({ ...activeConfig.value });
-const selectedVendor = ref<"deepseek" | "gemini" | "qwen" | "custom">("deepseek");
+const selectedVendor = ref<"deepseek" | "gemini" | "qwen" | "custom">("gemini");
 
 const activeModelShortName = computed(() => {
-  const m = activeConfig.value.model || "DeepSeek";
+  const m = activeConfig.value.model || "Gemini";
+  if (m.toLowerCase().includes("gemini")) return "Gemini-3.8";
   if (m.toLowerCase().includes("deepseek")) return "DeepSeek";
-  if (m.toLowerCase().includes("gemini")) return "Gemini";
   if (m.toLowerCase().includes("qwen")) return "Qwen";
   return m.slice(0, 10);
 });
 
 function openConfigModal() {
   tempConfig.value = { ...activeConfig.value };
+  if (!tempConfig.value.serverNode) {
+    tempConfig.value.serverNode = "local";
+  }
   showConfigModal.value = true;
 }
 
 function selectVendor(type: "deepseek" | "gemini" | "qwen" | "custom") {
   selectedVendor.value = type;
-  if (type === "deepseek") {
-    tempConfig.value.baseUrl = "https://api.deepseek.com";
-    tempConfig.value.model = "deepseek-flash";
-  } else if (type === "gemini") {
-    tempConfig.value.baseUrl = "http://localhost:8045/v1";
+  if (type === "gemini") {
+    tempConfig.value.baseUrl = "http://127.0.0.1:8045/v1";
+    tempConfig.value.apiKey = "sk-f9ae12d50cca49a78ce1d7241caf6570";
     tempConfig.value.model = "gemini-3.8-flash";
+    tempConfig.value.serverNode = "local"; // 自动联动指向本地后端，以连通本地 8045 代理
+  } else if (type === "deepseek") {
+    tempConfig.value.baseUrl = "https://api.deepseek.com";
+    tempConfig.value.apiKey = "sk-368bdbc412ea4f369721e644a0b330e2";
+    tempConfig.value.model = "deepseek-flash";
   } else if (type === "qwen") {
     tempConfig.value.baseUrl = "https://dashscope.aliyuncs.com/compatible-mode/v1";
     tempConfig.value.model = "qwen-vl-plus";
@@ -306,14 +323,14 @@ function selectVendor(type: "deepseek" | "gemini" | "qwen" | "custom") {
 
 function resetToDefaultConfig() {
   tempConfig.value = { ...DEFAULT_LLM_CONFIG };
-  selectedVendor.value = "deepseek";
+  selectedVendor.value = "gemini";
 }
 
 function saveUserConfig() {
   activeConfig.value = { ...tempConfig.value };
   saveLlmConfig(activeConfig.value);
   showConfigModal.value = false;
-  uni.showToast({ title: "模型配置已更新生效", icon: "success" });
+  uni.showToast({ title: "配置已更新生效", icon: "success" });
 }
 
 const instance = getCurrentInstance();
@@ -325,7 +342,6 @@ function resetToHero() {
   appState.value = "hero";
 }
 
-// 开启嵌入式前置原生相机
 function startEmbeddedCamera() {
   // #ifdef MP-WEIXIN
   uni.authorize({
@@ -348,7 +364,6 @@ function onCameraError() {
   checkPrivacyAndChoose("camera");
 }
 
-// 抓拍高清人像帧
 function snapPhotoFromCamera() {
   // #ifdef MP-WEIXIN
   const cameraCtx = uni.createCameraContext();
@@ -522,7 +537,7 @@ function handleExportPoster() {
   box-sizing: border-box;
 }
 
-/* ★ 跨视图平滑适应动画 (空间连续性) */
+/* 跨视图平滑适应动画 */
 .view-transition-enter {
   animation: viewFadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
@@ -633,7 +648,6 @@ function handleExportPoster() {
   box-shadow: 0 10rpx 40rpx rgba(0, 0, 0, 0.03);
 }
 
-/* ★ 待机视窗：高度大于宽度 (3:4 人像竖向黄金比)，拍下整张脸 */
 .capture-visual-box {
   position: relative;
   width: 100%;
@@ -696,7 +710,7 @@ function handleExportPoster() {
   color: #6B7280;
 }
 
-/* ★ 嵌入式前置原生相机视窗 (高度扩大至 600rpx，人像比例大画幅) */
+/* 嵌入式前置原生相机视窗 */
 .embedded-camera-box {
   position: relative;
   width: 100%;
@@ -723,7 +737,6 @@ function handleExportPoster() {
   justify-content: center;
 }
 
-/* 四角高精金属刻度 */
 .hud-corner-mark {
   position: absolute;
   width: 24rpx;
@@ -736,7 +749,6 @@ function handleExportPoster() {
 .hud-bl { bottom: 16rpx; left: 16rpx; border-bottom: 4rpx solid #B89058; border-left: 4rpx solid #B89058; }
 .hud-br { bottom: 16rpx; right: 16rpx; border-bottom: 4rpx solid #B89058; border-right: 4rpx solid #B89058; }
 
-/* 3:4 黄金人像面部轮廓引导框 */
 .guide-oval-ring {
   position: relative;
   width: 380rpx;
@@ -794,7 +806,6 @@ function handleExportPoster() {
   color: rgba(255, 255, 255, 0.8);
 }
 
-/* 按钮组 */
 .capture-btn-group {
   display: flex;
   flex-direction: column;
@@ -820,7 +831,6 @@ function handleExportPoster() {
   font-size: 24rpx;
 }
 
-/* 底部三维度说明 */
 .dimensions-strip {
   display: flex;
   align-items: center;
@@ -851,7 +861,6 @@ function handleExportPoster() {
   font-size: 22rpx;
 }
 
-/* 隐私声明 */
 .privacy-footer {
   display: flex;
   align-items: center;
@@ -892,10 +901,10 @@ function handleExportPoster() {
   max-width: 640rpx;
   background: #FFFFFF;
   border-radius: 24rpx;
-  padding: 40rpx;
+  padding: 36rpx;
   display: flex;
   flex-direction: column;
-  gap: 28rpx;
+  gap: 24rpx;
   box-shadow: 0 20rpx 60rpx rgba(0, 0, 0, 0.15);
 }
 
@@ -912,7 +921,7 @@ function handleExportPoster() {
 }
 
 .modal-title {
-  font-size: 34rpx;
+  font-size: 32rpx;
   color: #111827;
 }
 
@@ -928,7 +937,30 @@ function handleExportPoster() {
   line-height: 1;
 }
 
-/* 多厂商快捷选项栏 */
+/* 节点切换 */
+.node-switch-row {
+  display: flex;
+  flex-direction: column;
+  gap: 10rpx;
+}
+
+.node-pill {
+  font-size: 22rpx;
+  color: #4B5563;
+  background: #F4F4F6;
+  border: 1px solid #EAECEF;
+  padding: 10rpx 20rpx;
+  border-radius: 10rpx;
+  transition: all 0.2s ease;
+}
+
+.node-active {
+  color: #B89058;
+  background: #FDF9F2;
+  border-color: #B89058;
+  font-weight: 600;
+}
+
 .vendor-selector-row {
   display: flex;
   gap: 10rpx;
@@ -957,13 +989,13 @@ function handleExportPoster() {
 .modal-form {
   display: flex;
   flex-direction: column;
-  gap: 22rpx;
+  gap: 20rpx;
 }
 
 .form-field {
   display: flex;
   flex-direction: column;
-  gap: 10rpx;
+  gap: 8rpx;
 }
 
 .field-label-row {
@@ -985,7 +1017,7 @@ function handleExportPoster() {
 
 .field-input {
   width: 100%;
-  height: 76rpx;
+  height: 74rpx;
   background: #F9FAFB;
   border: 1px solid #E5E7EB;
   border-radius: 10rpx;
@@ -1002,8 +1034,8 @@ function handleExportPoster() {
 
 .modal-actions {
   display: flex;
-  gap: 20rpx;
-  margin-top: 10rpx;
+  gap: 16rpx;
+  margin-top: 8rpx;
 }
 
 .modal-btn {
