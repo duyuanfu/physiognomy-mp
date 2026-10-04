@@ -6,7 +6,7 @@ export interface LlmConfig {
   model: string;
 }
 
-// 默认配置（不内置硬编码密钥，由用户自行在设置弹窗中输入或通过后端安全环境变量读取）
+// 默认配置
 export const DEFAULT_LLM_CONFIG: LlmConfig = {
   baseUrl: "https://api.deepseek.com",
   apiKey: "",
@@ -27,7 +27,7 @@ export function saveLlmConfig(cfg: LlmConfig) {
   uni.setStorageSync("llm_config", cfg);
 }
 
-// 线上生产接口统一入口
+// ★ 线上云端生产统一入口 (已彻底删除 devtools 本地判断分支，全端统一请求云服务器)
 const BASE_URL = "https://api.trythis.pw/api/v1";
 
 function fallbackPostBase64(filePath: string, cfg: LlmConfig): Promise<FacialReportResponse> {
@@ -53,7 +53,8 @@ function fallbackPostBase64(filePath: string, cfg: LlmConfig): Promise<FacialRep
           if (res.statusCode === 200) {
             resolve(res.data as FacialReportResponse);
           } else {
-            reject(new Error(res.data?.detail || `分析失败 (${res.statusCode})`));
+            const errDetail = res.data?.detail || res.data?.message || `服务器返回异常 (HTTP ${res.statusCode})`;
+            reject(new Error(errDetail));
           }
         },
         fail: (e: any) => {
@@ -99,19 +100,19 @@ export function analyzeFaceImage(filePath: string): Promise<FacialReportResponse
       },
       fail: (err) => {
         const msg = err.errMsg || "";
-        console.warn("uploadFile 失败，尝试启用 Base64 备用通道...", msg);
+        console.warn("uploadFile 异常，尝试 Base64 备用通道...", msg);
 
         if (msg.includes("socket hang up") || msg.includes("ECONNRESET") || msg.includes("timeout")) {
           fallbackPostBase64(filePath, cfg)
             .then(resolve)
-            .catch(() => {
-              reject(new Error("连接中断：请在微信开发者工具顶部「设置」➔「代理设置」中勾选「不使用任何代理」后重试"));
+            .catch((e) => {
+              reject(new Error(e.message || "连接中断，请重试"));
             });
           return;
         }
 
         if (msg.includes("url in domain list") || msg.includes("not in domain list")) {
-          reject(new Error("真机拦截：请在手机小程序右上角点击「...」➔ 打开「开发调试」以允许局域网调试"));
+          reject(new Error("真机拦截：请在手机小程序右上角点击「...」➔ 打开「开发调试」以允许公网通信"));
         } else {
           reject(new Error(msg || "网络连接异常"));
         }

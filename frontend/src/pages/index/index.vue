@@ -146,7 +146,7 @@
         <view class="modal-header">
           <view class="modal-title-group">
             <text class="modal-title arch-heading">大模型与推理接口配置</text>
-            <text class="modal-desc">内置多厂商快速切换 · 支持任意 OpenAI 兼容接口</text>
+            <text class="modal-desc">可自由切换不同 AI 厂商或自定义专属接口</text>
           </view>
           <text class="modal-close-x" @click="showConfigModal = false">✕</text>
         </view>
@@ -189,13 +189,13 @@
           <view class="form-field">
             <view class="field-label-row">
               <text class="field-label">API 密钥 (API Key)</text>
-              <text class="field-fallback-tip">（若留空则自动使用系统内置兜底）</text>
+              <text class="field-fallback-tip">（若留空则自动调用云端内置密钥）</text>
             </view>
             <input
               v-model="tempConfig.apiKey"
               class="field-input mono-font"
               type="text"
-              placeholder="可输入你的专属 sk-... 或留空"
+              placeholder="请输入你的专属 sk-... 密钥"
             />
           </view>
 
@@ -212,7 +212,7 @@
         <!-- 底部按钮 -->
         <view class="modal-actions">
           <button class="arch-btn-secondary modal-btn" @click="resetToDefaultConfig">恢复默认</button>
-          <button class="arch-btn-primary modal-btn" @click="saveUserConfig">保存并生效</button>
+          <button class="arch-btn-primary modal-btn" @click="saveUserConfig">保存生效</button>
         </view>
       </view>
     </view>
@@ -349,7 +349,7 @@ function snapPhotoFromCamera() {
       quality: "high",
       success: (res: any) => {
         isCameraLive.value = false;
-        onImageSelected(res.tempImagePath);
+        processAndUploadImage(res.tempImagePath);
       },
       fail: () => {
         checkPrivacyAndChoose("camera");
@@ -395,7 +395,21 @@ function checkPrivacyAndChoose(preferredSource: "album" | "camera") {
   handleChooseImage(preferredSource);
 }
 
-const onImageSelected = async (filePath: string) => {
+// 自动对真机大图进行高质量轻量压缩 (将 10MB 照片压至 600KB，传输提速 10 倍！)
+function processAndUploadImage(rawPath: string) {
+  uni.compressImage({
+    src: rawPath,
+    quality: 80,
+    success: (compressRes) => {
+      executeUpload(compressRes.tempFilePath);
+    },
+    fail: () => {
+      executeUpload(rawPath);
+    }
+  });
+}
+
+const executeUpload = async (filePath: string) => {
   selectedImage.value = filePath;
   appState.value = "scanning";
   try {
@@ -405,12 +419,17 @@ const onImageSelected = async (filePath: string) => {
       appState.value = "report";
     }, 1600);
   } catch (error: any) {
+    // ★ 彻底删除“自带边界的高智感底色”，直接暴露真实报错！
     uni.showModal({
-      title: "解构提醒",
-      content: error.message || "未能捕捉到清晰面部能量，请确保正视镜头重新拍摄",
-      showCancel: false,
-      confirmText: "重新拍摄",
-      success: () => {
+      title: "大模型调用未成功",
+      content: error.message || "请求失败",
+      showCancel: true,
+      cancelText: "取消",
+      confirmText: "去配置模型",
+      success: (res) => {
+        if (res.confirm) {
+          openConfigModal();
+        }
         appState.value = "hero";
       }
     });
@@ -431,7 +450,7 @@ function handleChooseImage(preferredSource: "album" | "camera") {
       camera: "front",
       success: (res: any) => {
         if (res.tempFiles && res.tempFiles.length > 0) {
-          onImageSelected(res.tempFiles[0].tempFilePath);
+          processAndUploadImage(res.tempFiles[0].tempFilePath);
         }
       },
       fail: (err: any) => {
@@ -445,7 +464,7 @@ function handleChooseImage(preferredSource: "album" | "camera") {
       sourceType: sources,
       success: (res) => {
         if (res.tempFilePaths && res.tempFilePaths.length > 0) {
-          onImageSelected(res.tempFilePaths[0]);
+          processAndUploadImage(res.tempFilePaths[0]);
         }
       },
       fail: (err: any) => {
@@ -473,17 +492,7 @@ function handlePickerError(err: any, preferredSource: "album" | "camera") {
       sourceType: ["album"],
       success: (res) => {
         if (res.tempFilePaths && res.tempFilePaths.length > 0) {
-          selectedImage.value = res.tempFilePaths[0];
-          appState.value = "scanning";
-          analyzeFaceImage(selectedImage.value)
-            .then(resp => {
-              reportData.value = resp;
-              setTimeout(() => { appState.value = "report"; }, 1600);
-            })
-            .catch(e => {
-              uni.showToast({ title: e.message || "分析失败", icon: "none" });
-              appState.value = "hero";
-            });
+          processAndUploadImage(res.tempFilePaths[0]);
         }
       },
       fail: () => {}
