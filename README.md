@@ -295,6 +295,77 @@ const BASE_URL = "https://api.yourdomain.com/api/v1";
 
 ---
 
+### 六、使用 Cloudflare Worker 搭建免费 Gemini 跨境反代（免服务器翻墙）
+
+国内云服务器受 GFW 网络限制无法直接访问 Google 官方 Gemini 接口。本项目完美支持通过 **Cloudflare Worker 零成本、免装 VPN 搭建海外中转通道**。
+
+#### 1. 核心架构与机制
+- **零成本**：Cloudflare 每日提供 100,000 次免费 Worker 请求；
+- **免服务器翻墙**：国内服务器直接访问公网 Worker 域名，Cloudflare 海外边缘节点负责直连 Google 官方接口并返回数据。
+
+#### 2. Worker 反向代理代码 (JavaScript)
+在 Cloudflare 控制台创建 Worker，粘贴以下代码：
+```javascript
+export default {
+  async fetch(request, env, ctx) {
+    if (request.method === 'OPTIONS') {
+      return new Response(null, {
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+          'Access-Control-Allow-Headers': '*',
+        }
+      });
+    }
+
+    const url = new URL(request.url);
+    let path = url.pathname;
+    if (path.startsWith('/v1/')) {
+      path = '/v1beta/openai/' + path.slice(4);
+    } else if (path === '/v1') {
+      path = '/v1beta/openai/';
+    }
+
+    const targetUrl = `https://generativelanguage.googleapis.com${path}${url.search}`;
+    const newHeaders = new Headers(request.headers);
+    newHeaders.set('Host', 'generativelanguage.googleapis.com');
+
+    const newRequest = new Request(targetUrl, {
+      method: request.method,
+      headers: newHeaders,
+      body: request.body,
+      redirect: 'follow'
+    });
+
+    const response = await fetch(newRequest);
+    const modifiedResponse = new Response(response.body, response);
+    modifiedResponse.headers.set('Access-Control-Allow-Origin', '*');
+    modifiedResponse.headers.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    modifiedResponse.headers.set('Access-Control-Allow-Headers', '*');
+    return modifiedResponse;
+  }
+};
+```
+
+#### 3. 绑定域名路由
+在 Cloudflare 域名控制台（如 `trythis.pw`）中：
+1. **「DNS」➔「记录」**：添加 A 记录 `gemini`，IP 填 `192.0.2.1`，**必须开启小黄云（已代理）**；
+2. **「Workers 路由 (Workers Routes)」**：添加路由：
+   - **路由 (Route)**：`gemini.trythis.pw/*`
+   - **区域 (Zone)**：`trythis.pw`
+   - **Worker**：选择你的 Worker
+   - 保存即可全网秒级生效！
+
+#### 4. 系统内置兜底通道配置
+本项目服务端与前端已预置将该中转通道作为**高可用兜底保障**：
+- **接口地址 (Base URL)**：`https://gemini.trythis.pw/v1`
+- **模型名称 (Model)**：`models/gemini-flash-latest`
+- **API 密钥配置**：在服务器的 `backend/.env` 中配置 `GEMINI_API_KEY=你的Google_OAuth或AI_Studio_Key`（或在小程序设置弹窗中输入），即可畅享无阻的高可用推理。
+
+当用户前端未提供专属 Key 或主通道欠费故障时，后端将自动启用此通道进行高可用推理，保证测算 100% 顺畅交付。
+
+---
+
 ## 常见报错与踩坑排查手册
 
 ### 1. Docker 报错 `OSError: libEGL.so.1: cannot open shared object file`

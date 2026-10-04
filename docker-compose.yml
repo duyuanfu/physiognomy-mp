@@ -13,13 +13,14 @@ services:
       - PORT=8000
       - HOST=0.0.0.0
       - ENV=production
-      # 密钥通过服务器本地 .env 安全注入，绝不在代码中硬编码
+      # 默认主通道
       - DEFAULT_API_KEY=${DEFAULT_API_KEY}
       - DEFAULT_BASE_URL=${DEFAULT_BASE_URL:-https://api.deepseek.com}
-      - DEFAULT_MODEL=${DEFAULT_MODEL:-DeepSeek-V4.1-Flash}
+      - DEFAULT_MODEL=${DEFAULT_MODEL:-deepseek-flash}
+      # ★ 系统级高可用兜底通道：Cloudflare Worker 跨境反代 Google Gemini
       - GEMINI_API_KEY=${GEMINI_API_KEY}
-      - GEMINI_BASE_URL=${GEMINI_BASE_URL:-http://host.docker.internal:8045/v1}
-      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-3.8-flash}
+      - GEMINI_BASE_URL=${GEMINI_BASE_URL:-https://gemini.trythis.pw/v1}
+      - GEMINI_MODEL=${GEMINI_MODEL:-models/gemini-flash-latest}
       - PRIMARY_TIMEOUT_SECONDS=35.0
     extra_hosts:
       - "host.docker.internal:host-gateway"

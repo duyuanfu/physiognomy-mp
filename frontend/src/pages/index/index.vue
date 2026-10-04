@@ -289,8 +289,8 @@ function selectVendor(type: "deepseek" | "gemini" | "qwen" | "custom") {
     tempConfig.value.baseUrl = "https://api.deepseek.com";
     tempConfig.value.model = "deepseek-flash";
   } else if (type === "gemini") {
-    tempConfig.value.baseUrl = "https://generativelanguage.googleapis.com";
-    tempConfig.value.model = "gemini-1.5-flash";
+    tempConfig.value.baseUrl = "https://gemini.trythis.pw/v1";
+    tempConfig.value.model = "models/gemini-flash-latest";
   } else if (type === "qwen") {
     tempConfig.value.baseUrl = "https://dashscope.aliyuncs.com/compatible-mode/v1";
     tempConfig.value.model = "qwen-vl-plus";

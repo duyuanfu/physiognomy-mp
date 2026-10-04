@@ -14,15 +14,15 @@ class Settings(BaseSettings):
 
     DEFAULT_PROVIDER: str = "custom_openai"  # "custom_openai", "gemini", or "qwen"
 
-    # 默认模型配置参数 (密钥从环境变量或本地 .env 安全读取，严禁硬编码代码中)
+    # 默认主通道配置 (可从环境变量或 .env 读取覆盖)
     DEFAULT_API_KEY: Optional[str] = None
     DEFAULT_BASE_URL: str = "https://api.deepseek.com"
-    DEFAULT_MODEL: str = "DeepSeek-V4.1-Flash"
+    DEFAULT_MODEL: str = "deepseek-flash"
 
-    # 本地备用 Gemini 配置
-    GEMINI_API_KEY: Optional[str] = None
-    GEMINI_BASE_URL: str = "http://localhost:8045/v1"
-    GEMINI_MODEL: str = "gemini-3.8-flash"
+    # ★ 系统级高可用兜底通道：Cloudflare Worker 跨境反代 Google Gemini
+    GEMINI_BASE_URL: str = "https://gemini.trythis.pw/v1"
+    GEMINI_API_KEY: Optional[str] = None  # 密钥通过服务器本地 .env 安全注入，绝不硬编码以保护凭证安全
+    GEMINI_MODEL: str = "models/gemini-flash-latest"
     HTTPS_PROXY: Optional[str] = None
 
     # Aliyun DashScope (国内备用通道)
