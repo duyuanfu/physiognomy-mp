@@ -106,11 +106,13 @@ class ProviderManager:
         custom_base_url: Optional[str] = None,
         custom_api_key: Optional[str] = None,
         custom_model: Optional[str] = None
-    ) -> Tuple[LLMReportContent, str]:
+    ) -> Tuple[LLMReportContent, str, Optional[str]]:
         # 1. 确定本次调用的主模型通道 (前端动态传入优先，否则使用系统默认配置)
         target_base_url = custom_base_url or settings.DEFAULT_BASE_URL
         target_api_key = custom_api_key or settings.DEFAULT_API_KEY
         target_model = custom_model or settings.DEFAULT_MODEL
+
+        errors = []
 
         if target_base_url and target_api_key:
             provider = DynamicOpenAIProvider(
@@ -121,22 +123,30 @@ class ProviderManager:
             try:
                 logger.info(f"正在调用配置的模型 [{target_model}] @ [{target_base_url}]...")
                 report = await provider.generate_report(image_bytes, prompt, settings.PRIMARY_TIMEOUT_SECONDS)
-                return report, target_model
+                return report, target_model, None
             except Exception as e:
-                logger.warning(f"配置模型 [{target_model}] 调用异常 ({str(e)})，尝试自动切换至备用通道...")
+                err_detail = f"模型 [{target_model}] 调用失败: {str(e)}"
+                logger.warning(f"{err_detail}，尝试自动切换至备用通道...")
+                errors.append(err_detail)
+        else:
+            errors.append("未配置有效的 API Key")
 
-        # 2. 本地热备通道：Gemini 1.5/3.8 Flash
+        # 2. 本地/云端热备通道：Gemini Flash
         if settings.GEMINI_API_KEY and settings.GEMINI_BASE_URL:
             try:
-                logger.info(f"调用本地备用模型: {self.gemini_provider.provider_name}...")
+                logger.info(f"调用备用模型: {self.gemini_provider.provider_name}...")
                 report = await self.gemini_provider.generate_report(image_bytes, prompt, settings.PRIMARY_TIMEOUT_SECONDS)
-                return report, "gemini-flash"
+                fallback_reason = f"主通道异常({'; '.join(errors)})，已由系统备用通道接管"
+                return report, "gemini-flash", fallback_reason
             except Exception as e:
-                logger.warning(f"备用模型异常: {e}，启用高智感离线引擎...")
+                err_detail = f"系统备用通道失败: {str(e)}"
+                logger.warning(f"{err_detail}，启用高智感离线引擎...")
+                errors.append(err_detail)
 
-        # 3. 兜底离线引擎 (保证 100% 服务不中断)
+        # 3. 兜底离线引擎 (保证 100% 服务不中断，同时将排查报错透传给客户端)
         report = self._generate_mock_fallback(metrics)
-        return report, "offline_engine"
+        full_error = " | ".join(errors)
+        return report, "offline_engine", full_error
 
 
 provider_manager = ProviderManager()

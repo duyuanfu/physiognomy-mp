@@ -100,6 +100,7 @@ export interface FacialReportResponse {
   code: number;
   message: string;
   provider_used: string;
+  llm_error?: string;
   metrics: FacialMetrics;
   report: LLMReportContent;
 }

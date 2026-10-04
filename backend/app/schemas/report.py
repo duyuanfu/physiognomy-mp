@@ -120,6 +120,7 @@ class FacialReportResponse(BaseModel):
     code: int = 200
     message: str = "success"
     provider_used: str = Field(..., description="本次实际生效的模型提供方")
+    llm_error: Optional[str] = Field(default=None, description="大模型调用失败时的具体排查报错信息")
     metrics: FacialMetrics
     report: LLMReportContent
     extensions: ExtensionsReserved = Field(default_factory=ExtensionsReserved)

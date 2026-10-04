@@ -25,6 +25,15 @@
       </view>
     </view>
 
+    <!-- 若大模型接口报错走兜底，展示排查定位横幅 -->
+    <view v-if="llmError" class="diagnostic-alert-card">
+      <view class="alert-header">
+        <text class="alert-icon">⚠️</text>
+        <text class="alert-title">大模型接口排查诊断</text>
+      </view>
+      <text class="alert-desc">{{ llmError }}</text>
+    </view>
+
     <!-- 第一章：全局格局与骨相量度 -->
     <view class="chapter-card arch-card">
       <view class="chapter-title-row">
@@ -252,6 +261,7 @@ const props = defineProps<{
   metrics: FacialMetrics;
   report: LLMReportContent;
   providerUsed: string;
+  llmError?: string;
 }>();
 
 defineEmits(["export-poster", "re-test"]);
@@ -271,6 +281,40 @@ const reportId = computed(() => {
   background: #FBFBFC;
   box-sizing: border-box;
   width: 100%;
+}
+
+/* 诊断提示横幅 */
+.diagnostic-alert-card {
+  background: #FFFBEB;
+  border: 1px solid #FDE68A;
+  border-radius: 12rpx;
+  padding: 24rpx;
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
+}
+
+.alert-header {
+  display: flex;
+  align-items: center;
+  gap: 10rpx;
+}
+
+.alert-icon {
+  font-size: 26rpx;
+}
+
+.alert-title {
+  font-size: 26rpx;
+  font-weight: 600;
+  color: #B45309;
+}
+
+.alert-desc {
+  font-size: 22rpx;
+  color: #92400E;
+  line-height: 1.5;
+  word-break: break-all;
 }
 
 .dossier-bar {

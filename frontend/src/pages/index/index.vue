@@ -133,6 +133,7 @@
           :metrics="reportData.metrics"
           :report="reportData.report"
           :providerUsed="reportData.provider_used"
+          :llmError="reportData.llm_error"
           @export-poster="handleExportPoster"
           @re-test="resetToHero"
         />

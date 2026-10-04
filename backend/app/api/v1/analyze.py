@@ -59,7 +59,7 @@ async def analyze_face(
     prompt = build_analysis_prompt(metrics_desc, retrieved_knowledge)
 
     # 4. 模型生成 (支持前端自定义 LLM 与自动故障转移)
-    report_content, provider_used = await provider_manager.generate_report_with_fallback(
+    report_content, provider_used, llm_error = await provider_manager.generate_report_with_fallback(
         image_bytes=image_bytes,
         prompt=prompt,
         metrics=metrics,
@@ -72,6 +72,7 @@ async def analyze_face(
         code=200,
         message="success",
         provider_used=provider_used,
+        llm_error=llm_error,
         metrics=metrics,
         report=report_content,
         extensions=ExtensionsReserved()
