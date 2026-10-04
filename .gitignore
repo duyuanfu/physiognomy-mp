@@ -45,3 +45,8 @@ desktop.ini
 .vscode/*
 !.vscode/settings.json
 .idea/
+
+# Media Kit binary audio/video output
+media_kit/*.mp4
+media_kit/*.wav
+media_kit/audio_segments/
