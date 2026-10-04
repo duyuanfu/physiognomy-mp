@@ -13,9 +13,10 @@ class DynamicOpenAIProvider(BaseLLMProvider):
         self._base_url = base_url.rstrip("/")
         self._api_key = api_key
 
-        # ★ 智能模型名称纠偏与别名映射 (防止 DeepSeek-V4.1-Flash 被官方报错拒绝)
         normalized_model = model
         m_lower = model.lower().strip()
+
+        # 1. DeepSeek 官方模型名称别名纠偏
         if "deepseek.com" in self._base_url:
             if "flash" in m_lower or "v4.1" in m_lower or "4.1" in m_lower:
                 normalized_model = "deepseek-flash"
@@ -23,6 +24,11 @@ class DynamicOpenAIProvider(BaseLLMProvider):
                 normalized_model = "deepseek-v4-pro"
             elif "chat" in m_lower:
                 normalized_model = "deepseek-chat"
+
+        # 2. Google Gemini 官方/Worker反代模型前缀纠偏 (Google 强制要求 models/ 前缀)
+        if ("googleapis.com" in self._base_url or "gemini" in self._base_url or "trythis.pw" in self._base_url):
+            if "gemini" in m_lower and not m_lower.startswith("models/"):
+                normalized_model = f"models/{model}"
 
         self._model = normalized_model
 
