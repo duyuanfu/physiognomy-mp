@@ -131,6 +131,9 @@ cd /opt
 sudo git clone https://github.com/duyuanfu/physiognomy-mp.git
 sudo chown -R $USER:$USER /opt/physiognomy-mp
 cd physiognomy-mp
+
+# 后续代码更新
+git pull https://ghproxy.net/https://github.com/duyuanfu/physiognomy-mp.git main
 ```
 *注：若提示 `detected dubious ownership in repository`，执行：*
 ```bash

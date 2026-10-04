@@ -136,8 +136,8 @@ export function drawAndSavePoster(
     const earFullText = `采听耳相：${res.report.structure.ear_evidence.title} · ${res.report.structure.ear_evidence.analysis}`;
     const afterEarY = drawWrappedText(ctx, earFullText, paddingX, afterRatioY + 4, contentW, 32, 2);
 
-    // 细分割线 2
-    const div2Y = Math.max(afterEarY + 16, 950);
+    // 细分割线 2 (自然紧凑顺延，绝不留白空洞)
+    const div2Y = afterEarY + 24;
     ctx.setStrokeStyle("#EBE8E1");
     ctx.beginPath();
     ctx.moveTo(paddingX, div2Y);
@@ -145,7 +145,7 @@ export function drawAndSavePoster(
     ctx.stroke();
 
     // 7. 四维能量图谱 (采用 4 格雅致指标小卡片排布，清爽高级)
-    const sec3Y = div2Y + 32;
+    const sec3Y = div2Y + 28;
     ctx.setFillStyle("#1F5B6A");
     ctx.setFontSize(22);
     ctx.fillText("面容高维能量图谱", paddingX, sec3Y);
@@ -161,25 +161,22 @@ export function drawAndSavePoster(
     const cardGap = 12;
     const cardW = (contentW - cardGap * 3) / 4;
     const cardH = 70;
-    const cardTopY = sec3Y + 18;
+    const cardTopY = sec3Y + 16;
 
     radarItems.forEach((item, idx) => {
       const cx = paddingX + idx * (cardW + cardGap);
-      // 卡片底色
       ctx.setFillStyle("#F4F3EE");
       ctx.fillRect(cx, cardTopY, cardW, cardH);
-      // 分数
       ctx.setFillStyle("#B89058");
       ctx.setFontSize(28);
       ctx.fillText(`${item.val}`, cx + 16, cardTopY + 36);
-      // 标签
       ctx.setFillStyle("#6B7280");
       ctx.setFontSize(16);
       ctx.fillText(item.label, cx + 16, cardTopY + 58);
     });
 
     // 细分割线 3
-    const div3Y = cardTopY + cardH + 28;
+    const div3Y = cardTopY + cardH + 24;
     ctx.setStrokeStyle("#EBE8E1");
     ctx.beginPath();
     ctx.moveTo(paddingX, div3Y);
@@ -187,7 +184,7 @@ export function drawAndSavePoster(
     ctx.stroke();
 
     // 8. 底部小程序二维码指引区 (严格水平对齐)
-    const footerY = div3Y + 38;
+    const footerY = div3Y + 36;
     ctx.setFillStyle("#6B7280");
     ctx.setFontSize(20);
     ctx.fillText("扫码开启你的相度骨相解构之旅", paddingX, footerY);

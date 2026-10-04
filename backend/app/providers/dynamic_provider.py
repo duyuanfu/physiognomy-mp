@@ -140,13 +140,16 @@ class DynamicOpenAIProvider(BaseLLMProvider):
         if not raw_text:
             raise RuntimeError(last_error or f"大模型调用失败，请检查配置与网络")
 
+        # 智能提取最外层合法 JSON 对象，剔除思考标签与前置/后置废话
         clean_text = raw_text.strip()
-        if clean_text.startswith("```json"):
+        first_brace = clean_text.find("{")
+        last_brace = clean_text.rfind("}")
+        if first_brace != -1 and last_brace != -1 and last_brace > first_brace:
+            clean_text = clean_text[first_brace : last_brace + 1]
+        elif clean_text.startswith("```json"):
             clean_text = clean_text[7:]
-        if clean_text.startswith("```"):
-            clean_text = clean_text[3:]
-        if clean_text.endswith("```"):
-            clean_text = clean_text[:-3]
+            if clean_text.endswith("```"):
+                clean_text = clean_text[:-3]
 
         parsed_json = json.loads(clean_text.strip())
         return LLMReportContent.model_validate(parsed_json)

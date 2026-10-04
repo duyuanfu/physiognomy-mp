@@ -48,15 +48,15 @@
           <text class="module-verdict">{{ report.structure.three_parts.verdict }}</text>
         </view>
 
-        <!-- 可视化三庭比例分段条 -->
+        <!-- 可视化三庭比例分段条 (动态匹配实测比例) -->
         <view class="ratio-bar-track">
-          <view class="bar-segment seg-upper">
+          <view class="bar-segment seg-upper" :style="{ flex: threePartsFlex.upper }">
             <text class="seg-label">上庭</text>
           </view>
-          <view class="bar-segment seg-middle">
+          <view class="bar-segment seg-middle" :style="{ flex: threePartsFlex.middle }">
             <text class="seg-label">中庭</text>
           </view>
-          <view class="bar-segment seg-lower">
+          <view class="bar-segment seg-lower" :style="{ flex: threePartsFlex.lower }">
             <text class="seg-label">下庭</text>
           </view>
         </view>
@@ -268,6 +268,17 @@ defineEmits(["export-poster", "re-test"]);
 
 const reportId = computed(() => {
   return Math.floor(1000 + Math.random() * 9000);
+});
+
+// 动态三庭比例权重
+const threePartsFlex = computed(() => {
+  const ratioStr = props.metrics?.three_parts_ratio || "1 : 1 : 1";
+  const parts = ratioStr.split(":").map((s) => parseFloat(s.trim()) || 1.0);
+  return {
+    upper: Math.max(0.5, parts[0] || 1.0),
+    middle: Math.max(0.5, parts[1] || 1.0),
+    lower: Math.max(0.5, parts[2] || 1.0)
+  };
 });
 </script>
 

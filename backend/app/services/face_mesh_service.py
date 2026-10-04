@@ -155,12 +155,16 @@ class FaceMeshService:
         eye_tilt_type = "正向飞扬势" if canthal_tilt > 3.0 else ("亲和微垂势" if canthal_tilt < -2.0 else "沉稳平视势")
 
         # 4. 扩充美学指标
-        len_upper = max(1.0, abs(rot_glabella[1] - rot_trichion[1]))
-        len_mid = max(1.0, abs(rot_subnasale[1] - rot_glabella[1]))
-        len_lower = max(1.0, abs(rot_menton[1] - rot_subnasale[1]))
-        ratio_mid = round(len_mid / len_upper, 2)
-        ratio_lower = round(len_lower / len_upper, 2)
-        three_parts_ratio = f"1 : {ratio_mid} : {ratio_lower}"
+        len_upper = max(10.0, abs(rot_glabella[1] - rot_trichion[1]))
+        len_mid = max(10.0, abs(rot_subnasale[1] - rot_glabella[1]))
+        len_lower = max(10.0, abs(rot_menton[1] - rot_subnasale[1]))
+        total_len = len_upper + len_mid + len_lower
+        avg_third = total_len / 3.0
+
+        r_upper = round(float(len_upper / avg_third), 2)
+        r_mid = round(float(len_mid / avg_third), 2)
+        r_lower = round(float(len_lower / avg_third), 2)
+        three_parts_ratio = f"{r_upper:.2f} : {r_mid:.2f} : {r_lower:.2f}"
 
         intercanthal_dist = np.linalg.norm(rot_l_in - rot_r_in)
         intercanthal_ratio = round(float(intercanthal_dist / (eye_length + 1e-6)), 2)
