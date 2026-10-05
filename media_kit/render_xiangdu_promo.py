@@ -4,7 +4,7 @@ import math
 import asyncio
 import subprocess
 import wave
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageOps
 import edge_tts
 
 # 导入 FaceMesh 服务
@@ -19,9 +19,9 @@ HEIGHT = 1080
 FPS = 30
 FFMPEG_PATH = r"E:\ffmpeg\bin\ffmpeg.exe"
 VOICE = "zh-CN-YunxiNeural"
-VOICE_RATE = "+34%"  # 清脆爽快语速
+VOICE_RATE = "+34%"
 
-# 6 幕紧凑口语化脚本 (无暗色、无算命迷信、无长篇大论、纯图文视觉)
+# 6 幕超紧凑口语化脚本
 SCENES = [
     {
         "id": 1,
@@ -74,7 +74,7 @@ def get_font(size, bold=False):
     return ImageFont.load_default()
 
 font_hero = get_font(56, bold=True)
-font_title = get_font(46, bold=True)
+font_title = get_font(44, bold=True)
 font_sub_title = get_font(24, bold=False)
 font_card_h = get_font(28, bold=True)
 font_body_bold = get_font(22, bold=True)
@@ -83,17 +83,18 @@ font_small = get_font(16, bold=False)
 font_badge = get_font(18, bold=True)
 font_sub = get_font(38, bold=True)
 
-# 亮色奢华现代美学色彩方案 (高亮通透暖白底色 + 哑光香槟金 + 墨石灰 + 宝石翡翠青)
-COLOR_BG_MAIN = (250, 250, 248)       # 暖白艺术纸底色
-COLOR_BG_CARD = (255, 255, 255)       # 纯白卡片
-COLOR_BG_CARD_ALT = (246, 245, 241)   # 微暖白副卡片
-COLOR_GOLD = (184, 144, 88)          # 哑光金
+# 亮色高定美学色彩方案
+COLOR_BG_MAIN = (250, 250, 248)
+COLOR_BG_CARD = (255, 255, 255)
+COLOR_BG_CARD_ALT = (246, 245, 241)
+COLOR_GOLD = (184, 144, 88)
 COLOR_GOLD_DARK = (150, 110, 58)
-COLOR_TEXT_MAIN = (17, 24, 39)       # 墨石深色
-COLOR_TEXT_MUTED = (100, 116, 139)   # 中灰
-COLOR_BORDER = (226, 232, 240)       # 浅灰外框
-COLOR_BORDER_GOLD = (218, 192, 156)  # 金色高定边框
-COLOR_TEAL = (20, 110, 120)          # 游标青绿
+COLOR_GOLD_LIGHT = (245, 238, 226)
+COLOR_TEXT_MAIN = (17, 24, 39)
+COLOR_TEXT_MUTED = (100, 116, 139)
+COLOR_BORDER = (226, 232, 240)
+COLOR_BORDER_GOLD = (218, 192, 156)
+COLOR_TEAL = (20, 110, 120)
 
 # 载入 Logo
 LOGO_PATH = r"frontend/src/static/logo.png"
@@ -104,15 +105,13 @@ if os.path.exists(LOGO_PATH):
     except Exception:
         pass
 
-# 载入章子怡原图与各部位特写实测切片
+# 预载入章子怡原图与各部位切片
 ZIYI_PATH = r"media_kit/zhang_ziyi.png"
 cached_ziyi_crop = None
 cached_ziyi_pts = None
 cached_ziyi_mini = None
 
-CROP_EYES_PATH = r"media_kit/crop_eyes.jpg"
-CROP_NOSE_PATH = r"media_kit/crop_nose.jpg"
-CROP_JAW_PATH = r"media_kit/crop_jaw.jpg"
+# 三大核心特征无畸变原图切片
 cached_crop_eyes = None
 cached_crop_nose = None
 cached_crop_jaw = None
@@ -123,8 +122,10 @@ if os.path.exists(ZIYI_PATH):
             z_bytes = f.read()
         z_metrics = face_mesh_service.extract_metrics_from_bytes(z_bytes)
         
-        crop_box = (170, 70, 854, 880)
         im_z_full = Image.open(ZIYI_PATH).convert("RGBA")
+        
+        # 1. 全脸优雅裁剪 (保持标准 560x650 比例)
+        crop_box = (170, 70, 854, 880)
         z_crop = im_z_full.crop(crop_box)
         target_w, target_h = 560, 650
         cached_ziyi_crop = z_crop.resize((target_w, target_h), Image.Resampling.LANCZOS)
@@ -153,21 +154,22 @@ if os.path.exists(ZIYI_PATH):
         }
         cached_ziyi_mini = z_crop.resize((350, 220), Image.Resampling.LANCZOS)
         
-        # 内存自动生成三大核心部位高清单独特写
-        cached_crop_eyes = im_z_full.crop((260, 260, 764, 460))
-        cached_crop_nose = im_z_full.crop((380, 330, 644, 620))
-        cached_crop_jaw = im_z_full.crop((260, 480, 764, 820))
+        # 2. 局部无畸变切片 (480x260 黄金横幅)
+        # 眼眸切片: 500x270 原始像素
+        c_eyes_raw = im_z_full.crop((260, 260, 764, 460))
+        cached_crop_eyes = ImageOps.fit(c_eyes_raw, (460, 250), method=Image.Resampling.LANCZOS)
+        
+        # 鼻相切片: 300x300 原始像素
+        c_nose_raw = im_z_full.crop((370, 320, 654, 620))
+        cached_crop_nose = ImageOps.fit(c_nose_raw, (460, 250), method=Image.Resampling.LANCZOS)
+        
+        # 下颌切片: 500x340 原始像素
+        c_jaw_raw = im_z_full.crop((260, 470, 764, 810))
+        cached_crop_jaw = ImageOps.fit(c_jaw_raw, (460, 250), method=Image.Resampling.LANCZOS)
+        
     except Exception as e:
         print("章子怡人脸加载异常:", e)
 
-if not cached_crop_eyes and os.path.exists(CROP_EYES_PATH):
-    cached_crop_eyes = Image.open(CROP_EYES_PATH).convert("RGBA")
-if not cached_crop_nose and os.path.exists(CROP_NOSE_PATH):
-    cached_crop_nose = Image.open(CROP_NOSE_PATH).convert("RGBA")
-if not cached_crop_jaw and os.path.exists(CROP_JAW_PATH):
-    cached_crop_jaw = Image.open(CROP_JAW_PATH).convert("RGBA")
-
-# 原生矢量辅助函数 (严禁使用任何 Unicode 符号防止缺字)
 def draw_vector_play(draw, x, y, size=10, color=COLOR_GOLD):
     pts = [(x, y - size), (x + int(size * 1.4), y), (x, y + size)]
     draw.polygon(pts, fill=color)
@@ -257,7 +259,7 @@ async def generate_audio_pipeline():
         
     return scene_items, final_audio
 
-# 绘制通透亮色艺术纸背景 (柔和微渐变 + 哑金细致点阵网格)
+# 绘制通透亮色底图 (每一帧右上角严格统一显示：相度 AI相面 小程序名标)
 def draw_base_frame(draw, title, sub):
     for y in range(0, HEIGHT, 4):
         ratio = y / float(HEIGHT)
@@ -266,22 +268,31 @@ def draw_base_frame(draw, title, sub):
         b = int(249 - ratio * 6)
         draw.rectangle([0, y, WIDTH, y + 4], fill=(r, g, b))
         
-    # 浅金微点阵网格
     for x in range(40, WIDTH, 50):
         for y in range(40, HEIGHT, 50):
             draw.ellipse([x-1, y-1, x+1, y+1], fill=(225, 220, 210))
             
-    # 顶部品牌标尺
+    # 左上角品牌标尺
     draw.text((100, 44), "相 度  XIANGDU", font=font_small, fill=COLOR_GOLD)
     draw.text((260, 44), "// 工业级面部几何测算 · 骨相美学解构", font=font_small, fill=COLOR_TEXT_MUTED)
-    draw.text((WIDTH - 280, 44), "AI 现代骨相美学 · 2026 典藏版", font=font_small, fill=COLOR_GOLD_DARK)
+    
+    # ★ 满足要求 4：每一帧右上角醒目展示小程序名称「相度 AI相面」
+    badge_w = 260
+    badge_h = 44
+    badge_x = WIDTH - 100 - badge_w
+    badge_y = 36
+    draw.rounded_rectangle([badge_x, badge_y, badge_x + badge_w, badge_y + badge_h], radius=22, fill=(245, 238, 226), outline=COLOR_BORDER_GOLD, width=1)
+    
+    # 小程序圆点
+    draw.ellipse([badge_x + 18, badge_y + 16, badge_x + 30, badge_y + 28], fill=COLOR_GOLD)
+    draw.text((badge_x + 40, badge_y + 11), "相度 AI相面", font=font_body_bold, fill=COLOR_GOLD_DARK)
+    draw.text((badge_x + 175, badge_y + 14), "小程序", font=font_small, fill=COLOR_TEXT_MUTED)
     
     # 顶部标题区
     draw.text((100, 78), title, font=font_title, fill=COLOR_TEXT_MAIN)
-    draw.text((100, 140), sub, font=font_sub_title, fill=COLOR_GOLD_DARK)
-    draw.line([100, 182, WIDTH - 100, 182], fill=COLOR_BORDER_GOLD, width=1)
+    draw.text((100, 138), sub, font=font_sub_title, fill=COLOR_GOLD_DARK)
+    draw.line([100, 180, WIDTH - 100, 180], fill=COLOR_BORDER_GOLD, width=1)
 
-# 字幕绘制 (纯净高对比墨石字 + 柔和金光投影，永不遮挡)
 def draw_clean_subtitle(draw, text):
     b = font_sub.getbbox(text)
     tw = b[2] - b[0]
@@ -290,7 +301,7 @@ def draw_clean_subtitle(draw, text):
     draw.text((x + 2, y + 2), text, font=font_sub, fill=(184, 144, 88, 70))
     draw.text((x, y), text, font=font_sub, fill=COLOR_TEXT_MAIN)
 
-# 场景 1：吸睛开场 · 亮色通透高定质感
+# 场景 1：吸睛开场
 def render_scene_1(progress):
     im = Image.new("RGB", (WIDTH, HEIGHT), COLOR_BG_MAIN)
     draw = ImageDraw.Draw(im)
@@ -300,7 +311,6 @@ def render_scene_1(progress):
     draw.rounded_rectangle([cx, cy, cx + cw, cy + ch], radius=16, fill=COLOR_BG_CARD, outline=COLOR_BORDER_GOLD, width=2)
     draw.rounded_rectangle([cx + 10, cy + 10, cx + cw - 10, cy + ch - 10], radius=12, outline=(240, 235, 225), width=1)
     
-    # 左侧：章子怡电影脸高清肖像卡片 (暖金边框 + 雅致底座)
     pic_x, pic_y, pic_w, pic_h = cx + 50, cy + 45, 520, ch - 90
     draw.rounded_rectangle([pic_x, pic_y, pic_x + pic_w, pic_y + pic_h], radius=14, fill=COLOR_BG_CARD_ALT, outline=COLOR_BORDER_GOLD, width=2)
     
@@ -308,11 +318,9 @@ def render_scene_1(progress):
         small_z = cached_ziyi_crop.resize((pic_w - 20, pic_h - 20), Image.Resampling.LANCZOS)
         im.paste(small_z, (pic_x + 10, pic_y + 10), small_z)
         
-    # 角标标签
     draw.rounded_rectangle([pic_x + 25, pic_y + 25, pic_x + 220, pic_y + 70], radius=8, fill=(255, 255, 255, 230), outline=COLOR_GOLD, width=1)
     draw.text((pic_x + 40, pic_y + 35), "★ 电影脸天花板", font=font_badge, fill=COLOR_GOLD_DARK)
     
-    # 右侧：核心吸睛点与话题痛点
     rx = pic_x + pic_w + 60
     ry = cy + 60
     
@@ -340,7 +348,7 @@ def render_scene_1(progress):
     
     return im
 
-# 场景 2：章子怡实机 478 锚点测算 (亮白高光游标卡尺)
+# 场景 2：满足要求 1 —— 线条极其精细化、友好、专业的游标卡尺测量图
 def render_scene_2(progress):
     im = Image.new("RGB", (WIDTH, HEIGHT), COLOR_BG_MAIN)
     draw = ImageDraw.Draw(im)
@@ -349,41 +357,63 @@ def render_scene_2(progress):
     cx, cy, cw, ch = 100, 215, 1720, 750
     draw.rounded_rectangle([cx, cy, cx + cw, cy + ch], radius=16, fill=COLOR_BG_CARD, outline=COLOR_BORDER_GOLD, width=2)
     
-    # 左侧：实测取景卡尺
+    # 左侧：专业级人脸游标卡尺测量框 (带有高定金色四角刻度)
     fx, fy, fw, fh = cx + 40, cy + 40, 580, ch - 80
-    draw.rounded_rectangle([fx, fy, fx + fw, fy + fh], radius=12, fill=COLOR_BG_CARD_ALT, outline=COLOR_BORDER_GOLD, width=2)
+    draw.rounded_rectangle([fx, fy, fx + fw, fy + fh], radius=12, fill=COLOR_BG_CARD_ALT, outline=COLOR_BORDER_GOLD, width=1)
+    
+    # 工业级四角卡尺高定角标 ┌ ┐ └ ┘
+    corner_len = 24
+    draw.line([fx, fy + corner_len, fx, fy, fx + corner_len, fy], fill=COLOR_GOLD, width=3)
+    draw.line([fx + fw - corner_len, fy, fx + fw, fy, fx + fw, fy + corner_len], fill=COLOR_GOLD, width=3)
+    draw.line([fx, fy + fh - corner_len, fx, fy + fh, fx + corner_len, fy + fh], fill=COLOR_GOLD, width=3)
+    draw.line([fx + fw - corner_len, fy + fh, fx + fw, fy + fh, fx + fw, fy + fh - corner_len], fill=COLOR_GOLD, width=3)
     
     if cached_ziyi_crop:
         im.paste(cached_ziyi_crop, (fx + 10, fy + 10), cached_ziyi_crop)
         
         if cached_ziyi_pts:
+            # 1. 极其精细的外轮廓金线 (采用极细高对比平滑线)
             pts = [(fx + 10 + p[0], fy + 10 + p[1]) for p in cached_ziyi_pts["contour"]]
             for i in range(len(pts) - 1):
-                draw.line([pts[i], pts[i+1]], fill=(184, 144, 88, 200), width=2)
+                draw.line([pts[i], pts[i+1]], fill=(184, 144, 88, 160), width=1)
                 
+            # 2. 关键特征微点 (柔和青色光晕点，直径适中且极度工整)
             for p in cached_ziyi_pts["keys"]:
-                draw.ellipse([fx + 10 + p[0] - 4, fy + 10 + p[1] - 4, fx + 10 + p[0] + 4, fy + 10 + p[1] + 4], fill=COLOR_TEAL)
+                px, py = fx + 10 + p[0], fy + 10 + p[1]
+                draw.ellipse([px - 4, py - 4, px + 4, py + 4], fill=(245, 238, 226), outline=COLOR_TEAL, width=2)
                 
+            # 3. 骨相下颌角测量夹角连线 (下颌角 -> 下颏底点)
             jl = (fx + 10 + cached_ziyi_pts["jaw_l"][0], fy + 10 + cached_ziyi_pts["jaw_l"][1])
             jr = (fx + 10 + cached_ziyi_pts["jaw_r"][0], fy + 10 + cached_ziyi_pts["jaw_r"][1])
             menton = (fx + 10 + cached_ziyi_pts["menton"][0], fy + 10 + cached_ziyi_pts["menton"][1])
-            draw.line([jl, menton], fill=COLOR_GOLD, width=3)
-            draw.line([jr, menton], fill=COLOR_GOLD, width=3)
+            draw.line([jl, menton], fill=COLOR_GOLD, width=2)
+            draw.line([jr, menton], fill=COLOR_GOLD, width=2)
             
+            # 4. 优雅水平标尺 (不横切五官，仅在两侧呈现高定小标签)
             y_tri = fy + 10 + cached_ziyi_pts["trichion"][1]
             y_brow = fy + 10 + cached_ziyi_pts["brow"][1]
             y_sub = fy + 10 + cached_ziyi_pts["subnasale"][1]
             y_ment = menton[1]
             
-            for y_line, name in [(y_tri, "发际线"), (y_brow, "眉心基准"), (y_sub, "鼻底基准"), (y_ment, "下颏底点")]:
-                draw.line([fx + 15, y_line, fx + fw - 15, y_line], fill=COLOR_GOLD, width=1)
-                draw.text((fx + fw - 95, y_line - 18), name, font=font_small, fill=COLOR_GOLD_DARK)
+            levels = [
+                (y_tri, "上庭起点"),
+                (y_brow, "眉骨基准"),
+                (y_sub, "中庭底线"),
+                (y_ment, "下颏底点")
+            ]
+            for y_line, name in levels:
+                # 左右虚线导引
+                draw.line([fx + 12, y_line, fx + 50, y_line], fill=COLOR_GOLD, width=1)
+                draw.line([fx + fw - 50, y_line, fx + fw - 12, y_line], fill=COLOR_GOLD, width=1)
+                # 右侧雅致胶囊小标签
+                draw.rounded_rectangle([fx + fw - 95, y_line - 12, fx + fw - 15, y_line + 12], radius=10, fill=(255, 255, 255, 220), outline=COLOR_BORDER_GOLD, width=1)
+                draw.text((fx + fw - 88, y_line - 8), name, font=font_small, fill=COLOR_GOLD_DARK)
     
-    # 动态激光扫描线
+    # 动态扫描光束 (柔和浅金激光)
     scan_y = fy + 50 + int((math.sin(progress * math.pi * 4) + 1.0) / 2.0 * (fh - 100))
-    draw.line([fx + 20, scan_y, fx + fw - 20, scan_y], fill=(184, 144, 88, 180), width=3)
+    draw.line([fx + 20, scan_y, fx + fw - 20, scan_y], fill=(184, 144, 88, 160), width=2)
     draw_vector_play(draw, fx + 32, scan_y - 12, size=7, color=COLOR_GOLD)
-    draw.text((fx + 48, scan_y - 22), "3D 几何特征向量解构中...", font=font_small, fill=COLOR_GOLD)
+    draw.text((fx + 48, scan_y - 22), "3D 几何特征向量高精度解析中...", font=font_small, fill=COLOR_GOLD)
     
     # 右侧：章子怡实测参数
     rx = fx + fw + 50
@@ -410,7 +440,7 @@ def render_scene_2(progress):
         
     return im
 
-# 场景 3：三大核心部位微观实拍精析 (使用真实特写照片，彻底消灭密集文字！)
+# 场景 3：满足要求 2 —— 真实五官照片绝不拉伸变形，并在照片上精准标注出几何特征！
 def render_scene_3(progress):
     im = Image.new("RGB", (WIDTH, HEIGHT), COLOR_BG_MAIN)
     draw = ImageDraw.Draw(im)
@@ -419,47 +449,102 @@ def render_scene_3(progress):
     cx, cy, cw, ch = 100, 215, 1720, 750
     draw.rounded_rectangle([cx, cy, cx + cw, cy + ch], radius=16, fill=COLOR_BG_CARD, outline=COLOR_BORDER_GOLD, width=2)
     
-    # 3 列精美图文实拍大卡片
     col_w = (cw - 80) // 3
     col_h = ch - 60
     
-    feature_crops = [
-        ("01  外眦与眼眸微观", "+6.6° 仰角 · 清冷高智", cached_crop_eyes, "外眦处于黄金飞扬仰角区间，藏神聚势，自带超脱世俗的清冷气韵。"),
-        ("02  山根与中庭气场", "直挺丰润 · 蓄势沉潜", cached_crop_nose, "鼻梁顺挺平接印堂，准头圆融饱满，兼具坚定执行力与沉潜定力。"),
-        ("03  下颌角侧颜折叠", "113.4° 折角 · 刚柔抗衰", cached_crop_jaw, "清晰锐利的 113 度折角骨架，皮肉紧绷坚实支撑，越成熟越有强大气场。")
+    feature_cards = [
+        {
+            "num": "01",
+            "title": "外眦与眼眸微观",
+            "sub": "+6.6° 仰角 · 清冷高智感",
+            "img": cached_crop_eyes,
+            "type": "eyes",
+            "desc": "外眦处于黄金飞扬仰角区间，藏神聚势，自带超脱世俗的清冷气韵。"
+        },
+        {
+            "num": "02",
+            "title": "山根与中庭轴线",
+            "sub": "直挺丰润 · 蓄势沉潜",
+            "img": cached_crop_nose,
+            "type": "nose",
+            "desc": "鼻梁顺挺平接印堂，准头圆融饱满，兼具坚定执行力与沉潜定力。"
+        },
+        {
+            "num": "03",
+            "title": "下颌角侧颜折叠",
+            "sub": "113.4° 折角 · 刚柔抗衰",
+            "img": cached_crop_jaw,
+            "type": "jaw",
+            "desc": "清晰锐利的 113 度折角骨架，皮肉紧绷坚实支撑，越成熟越有强大气场。"
+        }
     ]
     
-    for i, (f_title, f_sub, f_img, f_desc) in enumerate(feature_crops):
+    for i, item in enumerate(feature_cards):
         bx = cx + 30 + i * (col_w + 10)
         by = cy + 30
         draw.rounded_rectangle([bx, by, bx + col_w, by + col_h], radius=14, fill=COLOR_BG_CARD_ALT, outline=COLOR_BORDER, width=1)
         
-        # 卡片顶部标题
-        draw.text((bx + 25, by + 20), f_title, font=font_card_h, fill=COLOR_TEXT_MAIN)
-        draw.text((bx + 25, by + 60), f_sub, font=font_body_bold, fill=COLOR_GOLD)
+        # 顶部标题栏
+        draw.text((bx + 25, by + 20), f"{item['num']}  {item['title']}", font=font_card_h, fill=COLOR_TEXT_MAIN)
+        draw.text((bx + 25, by + 60), item["sub"], font=font_body_bold, fill=COLOR_GOLD)
         
-        # 中间：置入真实特写实机照片
-        img_box_y = by + 100
-        img_box_h = 320
-        draw.rounded_rectangle([bx + 20, img_box_y, bx + col_w - 20, img_box_y + img_box_h], radius=10, fill=(240, 238, 230), outline=COLOR_BORDER_GOLD, width=1)
+        # 中间照片容器框 (严格保持 480x280 真实比例无拉伸)
+        box_y = by + 98
+        box_w = col_w - 40
+        box_h = 280
+        draw.rounded_rectangle([bx + 20, box_y, bx + 20 + box_w, box_y + box_h], radius=10, fill=(240, 238, 230), outline=COLOR_BORDER_GOLD, width=1)
         
-        if f_img:
-            # 缩放至合适尺寸
-            scaled = f_img.resize((col_w - 42, img_box_h - 2), Image.Resampling.LANCZOS)
-            im.paste(scaled, (bx + 21, img_box_y + 1), scaled)
+        # 贴入真实无拉伸照片并在照片上绘制高定标注！
+        if item["img"]:
+            im.paste(item["img"], (bx + 20 + (box_w - item["img"].width) // 2, box_y + (box_h - item["img"].height) // 2), item["img"])
             
-        # 底部：极简精辟评语
-        desc_y = img_box_y + img_box_h + 30
-        draw.text((bx + 25, desc_y), f_desc[:21], font=font_body, fill=COLOR_TEXT_MAIN)
-        draw.text((bx + 25, desc_y + 36), f_desc[21:], font=font_body, fill=COLOR_TEXT_MAIN)
+            # ★ 满足要求 2：解说什么五官就在照片上直接标注出来！
+            if item["type"] == "eyes":
+                # 绘制眼角外眦仰角切线与标注
+                ey_l_x = bx + 20 + 330
+                ey_l_y = box_y + 135
+                draw.line([ey_l_x - 70, ey_l_y, ey_l_x + 35, ey_l_y], fill=(120, 120, 120), width=1)
+                draw.line([ey_l_x - 70, ey_l_y + 12, ey_l_x + 35, ey_l_y - 12], fill=COLOR_GOLD, width=3)
+                draw.ellipse([ey_l_x - 5, ey_l_y - 5, ey_l_x + 5, ey_l_y + 5], fill=COLOR_TEAL)
+                draw.rounded_rectangle([ey_l_x - 30, ey_l_y - 50, ey_l_x + 85, ey_l_y - 18], radius=6, fill=(255, 255, 255, 230), outline=COLOR_BORDER_GOLD, width=1)
+                draw.text((ey_l_x - 22, ey_l_y - 45), "+6.6° 仰角", font=font_small, fill=COLOR_GOLD_DARK)
+                
+            elif item["type"] == "nose":
+                # 绘制山根垂直轴线与鼻翼游标
+                nx = bx + 20 + box_w // 2
+                ny_top = box_y + 35
+                ny_bot = box_y + 170
+                draw.line([nx, ny_top, nx, ny_bot], fill=COLOR_GOLD, width=2)
+                draw.line([nx - 55, ny_bot, nx + 55, ny_bot], fill=(120, 120, 120), width=1)
+                draw.line([nx - 55, ny_bot - 8, nx - 55, ny_bot + 8], fill=COLOR_GOLD, width=2)
+                draw.line([nx + 55, ny_bot - 8, nx + 55, ny_bot + 8], fill=COLOR_GOLD, width=2)
+                draw.rounded_rectangle([nx - 50, ny_top - 10, nx + 50, ny_top + 22], radius=6, fill=(255, 255, 255, 230), outline=COLOR_BORDER_GOLD, width=1)
+                draw.text((nx - 42, ny_top - 6), "山根中轴线", font=font_small, fill=COLOR_GOLD_DARK)
+                
+            elif item["type"] == "jaw":
+                # 绘制下颌折角测量支架与 113.4° 标签
+                jx = bx + 20 + 95
+                jy = box_y + 70
+                j_bot_x = bx + 20 + box_w // 2
+                j_bot_y = box_y + 130
+                draw.line([jx - 20, jy - 35, jx, jy], fill=COLOR_GOLD, width=3)
+                draw.line([jx, jy, j_bot_x, j_bot_y], fill=COLOR_GOLD, width=3)
+                draw.ellipse([jx - 6, jy - 6, jx + 6, jy + 6], fill=COLOR_TEAL)
+                draw.rounded_rectangle([jx - 15, jy + 15, jx + 95, jy + 48], radius=6, fill=(255, 255, 255, 230), outline=COLOR_BORDER_GOLD, width=1)
+                draw.text((jx - 6, jy + 20), "113.4° 刚柔折角", font=font_small, fill=COLOR_GOLD_DARK)
+                
+        # 底部评语描述
+        desc_y = box_y + box_h + 30
+        draw.text((bx + 25, desc_y), item["desc"][:21], font=font_body, fill=COLOR_TEXT_MAIN)
+        draw.text((bx + 25, desc_y + 36), item["desc"][21:], font=font_body, fill=COLOR_TEXT_MAIN)
         
-        # 底部指数胶囊
-        draw.rounded_rectangle([bx + 25, by + col_h - 60, bx + col_w - 25, by + col_h - 20], radius=8, fill=(245, 238, 226))
-        draw.text((bx + 40, by + col_h - 52), "★ 美学指数：S 级顶级骨相特征", font=font_small, fill=COLOR_GOLD_DARK)
+        # 指数微胶囊
+        draw.rounded_rectangle([bx + 25, by + col_h - 60, bx + col_w - 25, by + col_h - 20], radius=8, fill=COLOR_GOLD_LIGHT)
+        draw.text((bx + 40, by + col_h - 52), "★ 美学评级：电影级 S 级骨相特征", font=font_small, fill=COLOR_GOLD_DARK)
         
     return im
 
-# 场景 4：多模态大模型推演四维气场 (亮色清爽雷达图)
+# 场景 4：满足要求 3 —— 彻底告别简单四边形！高定多维能量罗盘 (Luxury Astrolabe & Multi-Ring Dial)
 def render_scene_4(progress):
     im = Image.new("RGB", (WIDTH, HEIGHT), COLOR_BG_MAIN)
     draw = ImageDraw.Draw(im)
@@ -468,43 +553,64 @@ def render_scene_4(progress):
     cx, cy, cw, ch = 100, 215, 1720, 750
     draw.rounded_rectangle([cx, cy, cx + cw, cy + ch], radius=16, fill=COLOR_BG_CARD, outline=COLOR_BORDER_GOLD, width=2)
     
-    # 左侧：四维雷达图可视化拟真框
-    rx, ry, rw, rh = cx + 50, cy + 40, 600, ch - 80
-    draw.rounded_rectangle([rx, ry, rx + rw, ry + rh], radius=12, fill=COLOR_BG_CARD_ALT, outline=COLOR_BORDER, width=1)
+    # 左侧：极具科技与艺术感的高定同心多环能量罗盘 (620x670)
+    rx, ry, rw, rh = cx + 45, cy + 40, 620, ch - 80
+    draw.rounded_rectangle([rx, ry, rx + rw, ry + rh], radius=14, fill=COLOR_BG_CARD_ALT, outline=COLOR_BORDER_GOLD, width=1)
     
     rc_x = rx + rw // 2
     rc_y = ry + rh // 2
     
-    # 绘制雷达多边形同心网格
-    for radius in [70, 130, 190]:
-        pts = [
-            (rc_x, rc_y - radius),
-            (rc_x + radius, rc_y),
-            (rc_x, rc_y + radius),
-            (rc_x - radius, rc_y)
-        ]
-        draw.polygon(pts, outline=(220, 215, 205), width=1)
-        
-    # 绘制雷达十字轴
-    draw.line([rc_x, rc_y - 210, rc_x, rc_y + 210], fill=(220, 215, 205), width=1)
-    draw.line([rc_x - 210, rc_y, rc_x + 210, rc_y], fill=(220, 215, 205), width=1)
+    # 1. 外围高定刻度环 (带有 360° 微刻度线)
+    outer_r = 220
+    draw.ellipse([rc_x - outer_r, rc_y - outer_r, rc_x + outer_r, rc_y + outer_r], outline=COLOR_BORDER_GOLD, width=2)
+    draw.ellipse([rc_x - outer_r + 8, rc_y - outer_r + 8, rc_x + outer_r - 8, rc_y + outer_r - 8], outline=(235, 230, 220), width=1)
     
-    # 填充高光雷达多边形 (智感98, 气场96, 抗衰95, 定力94)
+    for deg in range(0, 360, 15):
+        rad = math.radians(deg)
+        cos_a, sin_a = math.cos(rad), math.sin(rad)
+        len_tick = 8 if deg % 90 == 0 else 4
+        x1 = rc_x + (outer_r - len_tick) * cos_a
+        y1 = rc_y + (outer_r - len_tick) * sin_a
+        x2 = rc_x + outer_r * cos_a
+        y2 = rc_y + outer_r * sin_a
+        draw.line([x1, y1, x2, y2], fill=COLOR_GOLD, width=2 if deg % 90 == 0 else 1)
+        
+    # 2. 内层 4 圈同心能量环
+    for r_step in [60, 110, 160]:
+        draw.ellipse([rc_x - r_step, rc_y - r_step, rc_x + r_step, rc_y + r_step], outline=(230, 224, 212), width=1)
+        
+    # 3. 4 维十字轴线
+    draw.line([rc_x, rc_y - 210, rc_x, rc_y + 210], fill=(225, 218, 204), width=1)
+    draw.line([rc_x - 210, rc_y, rc_x + 210, rc_y], fill=(225, 218, 204), width=1)
+    
+    # 4. 能量雷达多边形 (智感98, 气场96, 抗衰95, 定力94)
     data_pts = [
         (rc_x, rc_y - int(190 * 0.98)),
         (rc_x + int(190 * 0.96), rc_y),
         (rc_x, rc_y + int(190 * 0.95)),
         (rc_x - int(190 * 0.94), rc_y)
     ]
-    draw.polygon(data_pts, fill=(184, 144, 88, 60), outline=COLOR_GOLD, width=3)
-    for p in data_pts:
-        draw.ellipse([p[0]-6, p[1]-6, p[0]+6, p[1]+6], fill=COLOR_TEAL)
-        
-    draw.text((rc_x - 45, rc_y - 245), "智感洞察 98", font=font_badge, fill=COLOR_GOLD_DARK)
-    draw.text((rc_x + 195, rc_y - 12), "气场边界 96", font=font_badge, fill=COLOR_GOLD_DARK)
-    draw.text((rc_x - 45, rc_y + 225), "情绪定力 94", font=font_badge, fill=COLOR_GOLD_DARK)
-    draw.text((rc_x - 290, rc_y - 12), "抗衰骨力 95", font=font_badge, fill=COLOR_GOLD_DARK)
+    draw.polygon(data_pts, fill=(184, 144, 88, 50), outline=COLOR_GOLD, width=3)
     
+    # 中心金色高光能量晶核
+    draw.ellipse([rc_x - 14, rc_y - 14, rc_x + 14, rc_y + 14], fill=COLOR_GOLD_LIGHT, outline=COLOR_GOLD, width=2)
+    draw.ellipse([rc_x - 5, rc_y - 5, rc_x + 5, rc_y + 5], fill=COLOR_GOLD)
+    
+    # 5. 四极点立体发光微胶囊 (附带环形进度感)
+    nodes = [
+        ("智感洞察", 98, rc_x, rc_y - 225, 0),
+        ("气场边界", 96, rc_x + 190, rc_y, 1),
+        ("情绪定力", 94, rc_x, rc_y + 225, 2),
+        ("抗衰骨力", 95, rc_x - 190, rc_y, 3)
+    ]
+    for n_title, n_val, nx, ny, pos in nodes:
+        # 数据圆点
+        dp = data_pts[pos]
+        draw.ellipse([dp[0] - 6, dp[1] - 6, dp[0] + 6, dp[1] + 6], fill=(255, 255, 255), outline=COLOR_TEAL, width=3)
+        # 标签背景胶囊
+        draw.rounded_rectangle([nx - 55, ny - 16, nx + 55, ny + 16], radius=10, fill=(255, 255, 255), outline=COLOR_BORDER_GOLD, width=1)
+        draw.text((nx - 45, ny - 10), f"{n_title} {n_val}", font=font_small, fill=COLOR_GOLD_DARK)
+        
     # 右侧：专属结构化报告输出卡片
     right_x = rx + rw + 50
     right_w = cw - rw - 110
@@ -515,10 +621,9 @@ def render_scene_4(progress):
     tags = ["#清冷高智感", "#电影脸骨相", "#坚韧定力", "#黄金折叠度"]
     for i, t in enumerate(tags):
         tx = right_x + i * 230
-        draw.rounded_rectangle([tx, cy + 175, tx + 210, cy + 220], radius=15, fill=(245, 238, 226), outline=COLOR_GOLD, width=1)
+        draw.rounded_rectangle([tx, cy + 175, tx + 210, cy + 220], radius=15, fill=COLOR_GOLD_LIGHT, outline=COLOR_GOLD, width=1)
         draw.text((tx + 25, cy + 185), t, font=font_badge, fill=COLOR_GOLD_DARK)
         
-    # 解构篇章卡片 (精简字数，排版舒展)
     draw.rounded_rectangle([right_x, cy + 250, right_x + right_w, cy + ch - 40], radius=12, fill=COLOR_BG_CARD_ALT, outline=COLOR_BORDER, width=1)
     
     sections = [
@@ -534,7 +639,7 @@ def render_scene_4(progress):
         
     return im
 
-# 场景 5：高定长海报导出 · 隐私保护
+# 场景 5：高定长海报导出
 def render_scene_5(progress):
     im = Image.new("RGB", (WIDTH, HEIGHT), COLOR_BG_MAIN)
     draw = ImageDraw.Draw(im)
@@ -543,13 +648,11 @@ def render_scene_5(progress):
     cx, cy, cw, ch = 100, 215, 1720, 750
     draw.rounded_rectangle([cx, cy, cx + cw, cy + ch], radius=16, fill=COLOR_BG_CARD, outline=COLOR_BORDER_GOLD, width=2)
     
-    # 左侧：9:16 长海报样机展示 (嵌入章子怡肖像)
     px, py, pw, ph = cx + 80, cy + 30, 390, ch - 60
     draw.rounded_rectangle([px, py, px + pw, py + ph], radius=12, fill=(250, 250, 248), outline=COLOR_BORDER_GOLD, width=2)
     
     draw.text((px + 20, py + 20), "相 度 // 典藏版", font=font_small, fill=COLOR_GOLD)
     
-    # 贴入章子怡微型海报图
     if cached_ziyi_mini:
         im.paste(cached_ziyi_mini, (px + 20, py + 50), cached_ziyi_mini)
         draw.rounded_rectangle([px + 20, py + 50, px + pw - 20, py + 270], radius=6, outline=COLOR_BORDER_GOLD, width=1)
@@ -571,7 +674,6 @@ def render_scene_5(progress):
         
     draw.text((px + 20, py + ph - 45), "扫码测算你的面部骨骼基因 · 严守隐私", font=font_small, fill=COLOR_TEXT_MUTED)
     
-    # 右侧：4 大精炼亮点卡片
     rx = px + pw + 60
     rw = cw - pw - 120
     
@@ -618,26 +720,22 @@ def render_scene_6(progress):
     ts_w = b_ts[2] - b_ts[0]
     draw.text(((WIDTH - ts_w) // 2, cy + 120), top_sub, font=font_card_h, fill=COLOR_TEXT_MUTED)
     
-    # 2. 核心微信搜索框 (严格居中 760px 宽度，布局极度考究对齐)
+    # 2. 核心微信搜索框 (严格居中 780px 宽度，布局极度考究对齐)
     search_w = 780
     search_h = 92
     search_x = (WIDTH - search_w) // 2
     search_y = cy + 190
     
-    # 搜索框外体 (高雅浅米金圆角胶囊)
     draw.rounded_rectangle([search_x, search_y, search_x + search_w, search_y + search_h], radius=46, fill=(247, 246, 242), outline=COLOR_GOLD, width=2)
     
-    # 原生矢量放大镜 (金色)
     mg_cx = search_x + 55
     mg_cy = search_y + search_h // 2
     mg_r = 16
     draw.ellipse([mg_cx - mg_r, mg_cy - mg_r, mg_cx + mg_r, mg_cy + mg_r], outline=COLOR_GOLD, width=4)
     draw.line([mg_cx + 11, mg_cy + 11, mg_cx + 25, mg_cy + 25], fill=COLOR_GOLD, width=5)
     
-    # 搜索文字 "相度" (从容左对齐在放大镜右侧，绝不挤压！)
     draw.text((search_x + 95, search_y + 22), "相度", font=font_hero, fill=COLOR_TEXT_MAIN)
     
-    # 右侧搜索按钮
     btn_w = 140
     btn_h = 70
     btn_x = search_x + search_w - btn_w - 11
@@ -661,12 +759,8 @@ def render_scene_6(progress):
     for i, (b_name, b_desc1, b_desc2) in enumerate(three_coins):
         cx_i = start_cx + i * (coin_w + gap)
         draw.rounded_rectangle([cx_i, badge_cy, cx_i + coin_w, badge_cy + coin_h], radius=14, fill=COLOR_BG_CARD_ALT, outline=COLOR_BORDER_GOLD, width=1)
-        
-        # 金币圆形微标
-        draw.ellipse([cx_i + coin_w // 2 - 35, badge_cy + 20, cx_i + coin_w // 2 + 35, badge_cy + 90], fill=(245, 238, 226), outline=COLOR_GOLD, width=2)
+        draw.ellipse([cx_i + coin_w // 2 - 35, badge_cy + 20, cx_i + coin_w // 2 + 35, badge_cy + 90], fill=COLOR_GOLD_LIGHT, outline=COLOR_GOLD, width=2)
         draw.text((cx_i + coin_w // 2 - 24, badge_cy + 38), b_name, font=font_card_h, fill=COLOR_GOLD_DARK)
-        
-        # 标签文字
         draw.text((cx_i + coin_w // 2 - 32, badge_cy + 105), b_desc1, font=font_body_bold, fill=COLOR_TEXT_MAIN)
         draw.text((cx_i + coin_w // 2 - 32, badge_cy + 138), b_desc2, font=font_small, fill=COLOR_TEXT_MUTED)
         
@@ -674,7 +768,7 @@ def render_scene_6(progress):
     foot_y = cy + ch - 90
     foot_w = 1100
     foot_x = (WIDTH - foot_w) // 2
-    draw.rounded_rectangle([foot_x, foot_y, foot_x + foot_w, foot_y + 55], radius=28, fill=(245, 239, 227), outline=COLOR_BORDER_GOLD, width=1)
+    draw.rounded_rectangle([foot_x, foot_y, foot_x + foot_w, foot_y + 55], radius=28, fill=COLOR_GOLD_LIGHT, outline=COLOR_BORDER_GOLD, width=1)
     
     foot_text = "★ 全内存计算 · 阅后即焚零存留 · GitHub 开源项目欢迎 Star！"
     b_ft = font_body_bold.getbbox(foot_text)
