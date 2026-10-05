@@ -31,9 +31,9 @@ SCENES = [
     },
     {
         "id": 2,
-        "title": "章子怡电影脸实测 · 478 关键点毫秒级锁定",
-        "sub": "下颌骨折角 113.4° · 外眦仰角 +6.6° · 3D 几何特征向量解构",
-        "voice": "以章子怡的电影脸为例，毫秒级捕捉四百七十八个锚点，下颌角一百一十三度，完美刚柔折角！"
+        "title": "顶级骨相美学实测 · 478 关键点毫秒级锁定",
+        "sub": "下颌骨折角 108.7° · 外眦仰角 +9.5° · 3D 几何特征向量解构",
+        "voice": "拒绝盲猜！以顶级骨相实测为例，毫秒级捕捉四百七十八个锚点，下颌角一百零八度，完美刚柔折角！"
     },
     {
         "id": 3,
@@ -105,38 +105,38 @@ if os.path.exists(LOGO_PATH):
     except Exception:
         pass
 
-# 预载入章子怡原图与各部位切片
-ZIYI_PATH = r"media_kit/zhang_ziyi.png"
-cached_ziyi_crop = None
-cached_ziyi_pts = None
-cached_ziyi_mini = None
+# 预载入用户指定的美人骨相原图与各部位切片
+FACE_PATH = r"media_kit/target_face.jpg"
+cached_face_crop = None
+cached_face_pts = None
+cached_face_mini = None
 
 # 三大核心特征无畸变原图切片
 cached_crop_eyes = None
 cached_crop_nose = None
 cached_crop_jaw = None
 
-if os.path.exists(ZIYI_PATH):
+if os.path.exists(FACE_PATH):
     try:
-        with open(ZIYI_PATH, "rb") as f:
-            z_bytes = f.read()
-        z_metrics = face_mesh_service.extract_metrics_from_bytes(z_bytes)
+        with open(FACE_PATH, "rb") as f:
+            f_bytes = f.read()
+        f_metrics = face_mesh_service.extract_metrics_from_bytes(f_bytes)
         
-        im_z_full = Image.open(ZIYI_PATH).convert("RGBA")
+        im_full = Image.open(FACE_PATH).convert("RGBA")
         
         # 1. 全脸优雅裁剪 (保持标准 560x650 比例)
-        crop_box = (170, 70, 854, 880)
-        z_crop = im_z_full.crop(crop_box)
+        crop_box = (380, 480, 2680, 3150)
+        z_crop = im_full.crop(crop_box)
         target_w, target_h = 560, 650
-        cached_ziyi_crop = z_crop.resize((target_w, target_h), Image.Resampling.LANCZOS)
+        cached_face_crop = z_crop.resize((target_w, target_h), Image.Resampling.LANCZOS)
         
         scale_x = target_w / float(crop_box[2] - crop_box[0])
         scale_y = target_h / float(crop_box[3] - crop_box[1])
         def map_p(p):
             return ((p[0] - crop_box[0]) * scale_x, (p[1] - crop_box[1]) * scale_y)
         
-        cp = z_metrics.caliper_points
-        cached_ziyi_pts = {
+        cp = f_metrics.caliper_points
+        cached_face_pts = {
             "contour": [map_p(p) for p in cp.contour_polygon],
             "keys": [
                 map_p(cp.left_eye_inner), map_p(cp.left_eye_outer),
@@ -152,23 +152,20 @@ if os.path.exists(ZIYI_PATH):
             "brow": map_p(cp.brow_peak_left),
             "subnasale": map_p(cp.subnasale)
         }
-        cached_ziyi_mini = z_crop.resize((350, 220), Image.Resampling.LANCZOS)
+        cached_face_mini = z_crop.resize((350, 220), Image.Resampling.LANCZOS)
         
-        # 2. 局部无畸变切片 (480x260 黄金横幅)
-        # 眼眸切片: 500x270 原始像素
-        c_eyes_raw = im_z_full.crop((260, 260, 764, 460))
+        # 2. 局部无畸变切片 (460x250 黄金横幅)
+        c_eyes_raw = im_full.crop((600, 1350, 2550, 2050))
         cached_crop_eyes = ImageOps.fit(c_eyes_raw, (460, 250), method=Image.Resampling.LANCZOS)
         
-        # 鼻相切片: 300x300 原始像素
-        c_nose_raw = im_z_full.crop((370, 320, 654, 620))
+        c_nose_raw = im_full.crop((950, 1650, 2350, 2600))
         cached_crop_nose = ImageOps.fit(c_nose_raw, (460, 250), method=Image.Resampling.LANCZOS)
         
-        # 下颌切片: 500x340 原始像素
-        c_jaw_raw = im_z_full.crop((260, 470, 764, 810))
+        c_jaw_raw = im_full.crop((650, 2250, 2600, 3250))
         cached_crop_jaw = ImageOps.fit(c_jaw_raw, (460, 250), method=Image.Resampling.LANCZOS)
-        
+        print("用户指定高定面孔数据载入成功！")
     except Exception as e:
-        print("章子怡人脸加载异常:", e)
+        print("人脸图片加载异常:", e)
 
 def draw_vector_play(draw, x, y, size=10, color=COLOR_GOLD):
     pts = [(x, y - size), (x + int(size * 1.4), y), (x, y + size)]
@@ -314,8 +311,8 @@ def render_scene_1(progress):
     pic_x, pic_y, pic_w, pic_h = cx + 50, cy + 45, 520, ch - 90
     draw.rounded_rectangle([pic_x, pic_y, pic_x + pic_w, pic_y + pic_h], radius=14, fill=COLOR_BG_CARD_ALT, outline=COLOR_BORDER_GOLD, width=2)
     
-    if cached_ziyi_crop:
-        small_z = cached_ziyi_crop.resize((pic_w - 20, pic_h - 20), Image.Resampling.LANCZOS)
+    if cached_face_crop:
+        small_z = cached_face_crop.resize((pic_w - 20, pic_h - 20), Image.Resampling.LANCZOS)
         im.paste(small_z, (pic_x + 10, pic_y + 10), small_z)
         
     draw.rounded_rectangle([pic_x + 25, pic_y + 25, pic_x + 220, pic_y + 70], radius=8, fill=(255, 255, 255, 230), outline=COLOR_GOLD, width=1)
@@ -348,11 +345,11 @@ def render_scene_1(progress):
     
     return im
 
-# 场景 2：满足要求 1 —— 线条极其精细化、友好、专业的游标卡尺测量图
+# 场景 2：实测真实高定面孔数据
 def render_scene_2(progress):
     im = Image.new("RGB", (WIDTH, HEIGHT), COLOR_BG_MAIN)
     draw = ImageDraw.Draw(im)
-    draw_base_frame(draw, "章子怡电影脸实测 · 478 关键点毫秒级锁定", "下颌骨折角 113.4° · 外眦仰角 +6.6° · 3D 几何特征向量解构")
+    draw_base_frame(draw, "顶级骨相美学实测 · 478 关键点毫秒级锁定", "下颌骨折角 108.7° · 外眦仰角 +9.5° · 3D 几何特征向量解构")
     
     cx, cy, cw, ch = 100, 215, 1720, 750
     draw.rounded_rectangle([cx, cy, cx + cw, cy + ch], radius=16, fill=COLOR_BG_CARD, outline=COLOR_BORDER_GOLD, width=2)
@@ -361,38 +358,33 @@ def render_scene_2(progress):
     fx, fy, fw, fh = cx + 40, cy + 40, 580, ch - 80
     draw.rounded_rectangle([fx, fy, fx + fw, fy + fh], radius=12, fill=COLOR_BG_CARD_ALT, outline=COLOR_BORDER_GOLD, width=1)
     
-    # 工业级四角卡尺高定角标 ┌ ┐ └ ┘
     corner_len = 24
     draw.line([fx, fy + corner_len, fx, fy, fx + corner_len, fy], fill=COLOR_GOLD, width=3)
     draw.line([fx + fw - corner_len, fy, fx + fw, fy, fx + fw, fy + corner_len], fill=COLOR_GOLD, width=3)
     draw.line([fx, fy + fh - corner_len, fx, fy + fh, fx + corner_len, fy + fh], fill=COLOR_GOLD, width=3)
     draw.line([fx + fw - corner_len, fy + fh, fx + fw, fy + fh, fx + fw, fy + fh - corner_len], fill=COLOR_GOLD, width=3)
     
-    if cached_ziyi_crop:
-        im.paste(cached_ziyi_crop, (fx + 10, fy + 10), cached_ziyi_crop)
+    if cached_face_crop:
+        im.paste(cached_face_crop, (fx + 10, fy + 10), cached_face_crop)
         
-        if cached_ziyi_pts:
-            # 1. 极其精细的外轮廓金线 (采用极细高对比平滑线)
-            pts = [(fx + 10 + p[0], fy + 10 + p[1]) for p in cached_ziyi_pts["contour"]]
+        if cached_face_pts:
+            pts = [(fx + 10 + p[0], fy + 10 + p[1]) for p in cached_face_pts["contour"]]
             for i in range(len(pts) - 1):
                 draw.line([pts[i], pts[i+1]], fill=(184, 144, 88, 160), width=1)
                 
-            # 2. 关键特征微点 (柔和青色光晕点，直径适中且极度工整)
-            for p in cached_ziyi_pts["keys"]:
+            for p in cached_face_pts["keys"]:
                 px, py = fx + 10 + p[0], fy + 10 + p[1]
                 draw.ellipse([px - 4, py - 4, px + 4, py + 4], fill=(245, 238, 226), outline=COLOR_TEAL, width=2)
                 
-            # 3. 骨相下颌角测量夹角连线 (下颌角 -> 下颏底点)
-            jl = (fx + 10 + cached_ziyi_pts["jaw_l"][0], fy + 10 + cached_ziyi_pts["jaw_l"][1])
-            jr = (fx + 10 + cached_ziyi_pts["jaw_r"][0], fy + 10 + cached_ziyi_pts["jaw_r"][1])
-            menton = (fx + 10 + cached_ziyi_pts["menton"][0], fy + 10 + cached_ziyi_pts["menton"][1])
+            jl = (fx + 10 + cached_face_pts["jaw_l"][0], fy + 10 + cached_face_pts["jaw_l"][1])
+            jr = (fx + 10 + cached_face_pts["jaw_r"][0], fy + 10 + cached_face_pts["jaw_r"][1])
+            menton = (fx + 10 + cached_face_pts["menton"][0], fy + 10 + cached_face_pts["menton"][1])
             draw.line([jl, menton], fill=COLOR_GOLD, width=2)
             draw.line([jr, menton], fill=COLOR_GOLD, width=2)
             
-            # 4. 优雅水平标尺 (不横切五官，仅在两侧呈现高定小标签)
-            y_tri = fy + 10 + cached_ziyi_pts["trichion"][1]
-            y_brow = fy + 10 + cached_ziyi_pts["brow"][1]
-            y_sub = fy + 10 + cached_ziyi_pts["subnasale"][1]
+            y_tri = fy + 10 + cached_face_pts["trichion"][1]
+            y_brow = fy + 10 + cached_face_pts["brow"][1]
+            y_sub = fy + 10 + cached_face_pts["subnasale"][1]
             y_ment = menton[1]
             
             levels = [
@@ -402,28 +394,26 @@ def render_scene_2(progress):
                 (y_ment, "下颏底点")
             ]
             for y_line, name in levels:
-                # 左右虚线导引
                 draw.line([fx + 12, y_line, fx + 50, y_line], fill=COLOR_GOLD, width=1)
                 draw.line([fx + fw - 50, y_line, fx + fw - 12, y_line], fill=COLOR_GOLD, width=1)
-                # 右侧雅致胶囊小标签
                 draw.rounded_rectangle([fx + fw - 95, y_line - 12, fx + fw - 15, y_line + 12], radius=10, fill=(255, 255, 255, 220), outline=COLOR_BORDER_GOLD, width=1)
                 draw.text((fx + fw - 88, y_line - 8), name, font=font_small, fill=COLOR_GOLD_DARK)
     
-    # 动态扫描光束 (柔和浅金激光)
+    # 动态扫描光束
     scan_y = fy + 50 + int((math.sin(progress * math.pi * 4) + 1.0) / 2.0 * (fh - 100))
     draw.line([fx + 20, scan_y, fx + fw - 20, scan_y], fill=(184, 144, 88, 160), width=2)
     draw_vector_play(draw, fx + 32, scan_y - 12, size=7, color=COLOR_GOLD)
     draw.text((fx + 48, scan_y - 22), "3D 几何特征向量高精度解析中...", font=font_small, fill=COLOR_GOLD)
     
-    # 右侧：章子怡实测参数
+    # 右侧：真实实测参数
     rx = fx + fw + 50
     rw = cw - fw - 110
     
     cards = [
-        ("下颌骨折角 (Jaw Angle)", "113.4°", "刚柔微折型 · 兼具柔和秀美与刚毅骨力，侧颜黄金折叠度", "骨相基石"),
-        ("外眦仰角 (Canthal Tilt)", "+6.6°", "正向飞扬势 · 眼神藏神不露，自带清冷凌厉的倔强高智感", "清冷英气"),
-        ("面部长宽比 (Face Ratio)", "1.21", "黄金平衡型 · 纵深立体，镜头吃焦极小，天生电影脸", "电影脸"),
-        ("三庭黄金比例", "0.66 : 1.22 : 1.12", "中庭沉潜饱满 · 气度沉稳内敛，兼具敏锐洞察与定力", "舒展端庄")
+        ("下颌骨折角 (Jaw Angle)", "108.7°", "刚柔微折型 · 兼具柔和秀美与坚毅骨力，侧颜黄金折叠度", "骨相基石"),
+        ("外眦仰角 (Canthal Tilt)", "+9.5°", "正向飞扬势 · 双眸明澈藏神不露，自带清冷灵动高智感", "清冷英气"),
+        ("面部长宽比 (Face Ratio)", "1.17", "黄金纵深型 · 饱满立体，镜头吃焦极小，天生上镜神颜", "神颜骨相"),
+        ("三庭黄金比例", "0.67 : 1.31 : 1.01", "中庭丰润聚势 · 气度沉稳内敛，兼具敏锐洞察与定力", "舒展端庄")
     ]
     
     for idx, (c_label, c_val, c_desc, c_tag) in enumerate(cards):
@@ -456,7 +446,7 @@ def render_scene_3(progress):
         {
             "num": "01",
             "title": "外眦与眼眸微观",
-            "sub": "+6.6° 仰角 · 清冷高智感",
+            "sub": "+9.5° 仰角 · 清冷高智感",
             "img": cached_crop_eyes,
             "type": "eyes",
             "desc": "外眦处于黄金飞扬仰角区间，藏神聚势，自带超脱世俗的清冷气韵。"
@@ -472,10 +462,10 @@ def render_scene_3(progress):
         {
             "num": "03",
             "title": "下颌角侧颜折叠",
-            "sub": "113.4° 折角 · 刚柔抗衰",
+            "sub": "108.7° 折角 · 刚柔抗衰",
             "img": cached_crop_jaw,
             "type": "jaw",
-            "desc": "清晰锐利的 113 度折角骨架，皮肉紧绷坚实支撑，越成熟越有强大气场。"
+            "desc": "清晰锐利的 108 度折角骨架，皮肉紧绷坚实支撑，越成熟越有强大气场。"
         }
     ]
     
@@ -507,7 +497,7 @@ def render_scene_3(progress):
                 draw.line([ey_l_x - 70, ey_l_y + 12, ey_l_x + 35, ey_l_y - 12], fill=COLOR_GOLD, width=3)
                 draw.ellipse([ey_l_x - 5, ey_l_y - 5, ey_l_x + 5, ey_l_y + 5], fill=COLOR_TEAL)
                 draw.rounded_rectangle([ey_l_x - 30, ey_l_y - 50, ey_l_x + 85, ey_l_y - 18], radius=6, fill=(255, 255, 255, 230), outline=COLOR_BORDER_GOLD, width=1)
-                draw.text((ey_l_x - 22, ey_l_y - 45), "+6.6° 仰角", font=font_small, fill=COLOR_GOLD_DARK)
+                draw.text((ey_l_x - 22, ey_l_y - 45), "+9.5° 仰角", font=font_small, fill=COLOR_GOLD_DARK)
                 
             elif item["type"] == "nose":
                 # 绘制山根垂直轴线与鼻翼游标
@@ -531,7 +521,7 @@ def render_scene_3(progress):
                 draw.line([jx, jy, j_bot_x, j_bot_y], fill=COLOR_GOLD, width=3)
                 draw.ellipse([jx - 6, jy - 6, jx + 6, jy + 6], fill=COLOR_TEAL)
                 draw.rounded_rectangle([jx - 15, jy + 15, jx + 95, jy + 48], radius=6, fill=(255, 255, 255, 230), outline=COLOR_BORDER_GOLD, width=1)
-                draw.text((jx - 6, jy + 20), "113.4° 刚柔折角", font=font_small, fill=COLOR_GOLD_DARK)
+                draw.text((jx - 6, jy + 20), "108.7° 刚柔折角", font=font_small, fill=COLOR_GOLD_DARK)
                 
         # 底部评语描述
         desc_y = box_y + box_h + 30
@@ -653,8 +643,8 @@ def render_scene_5(progress):
     
     draw.text((px + 20, py + 20), "相 度 // 典藏版", font=font_small, fill=COLOR_GOLD)
     
-    if cached_ziyi_mini:
-        im.paste(cached_ziyi_mini, (px + 20, py + 50), cached_ziyi_mini)
+    if cached_face_mini:
+        im.paste(cached_face_mini, (px + 20, py + 50), cached_face_mini)
         draw.rounded_rectangle([px + 20, py + 50, px + pw - 20, py + 270], radius=6, outline=COLOR_BORDER_GOLD, width=1)
         
     draw.text((px + 20, py + 290), "【 清峻折角型 · 电影脸 】", font=font_body_bold, fill=COLOR_GOLD)
