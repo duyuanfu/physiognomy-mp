@@ -12,14 +12,14 @@ class Settings(BaseSettings):
     HOST: str = "0.0.0.0"
     ENV: str = "development"
 
-    DEFAULT_PROVIDER: str = "custom_openai"  # "custom_openai", "gemini", or "qwen"
+    DEFAULT_PROVIDER: str = "gemini"
 
-    # 默认主通道配置 (可从环境变量或 .env 读取覆盖)
+    # 默认主通道配置：采用 Cloudflare Worker 跨境反代 Google Gemini (前端未配置时使用)
+    DEFAULT_BASE_URL: str = "https://gemini.trythis.pw/v1"
+    DEFAULT_MODEL: str = "models/gemini-flash-latest"
     DEFAULT_API_KEY: Optional[str] = None
-    DEFAULT_BASE_URL: str = "https://api.deepseek.com"
-    DEFAULT_MODEL: str = "deepseek-flash"
 
-    # ★ 系统级高可用兜底通道：Cloudflare Worker 跨境反代 Google Gemini
+    # 系统级默认通道：Cloudflare Worker 跨境反代 Google Gemini
     GEMINI_BASE_URL: str = "https://gemini.trythis.pw/v1"
     GEMINI_API_KEY: Optional[str] = None  # 密钥通过服务器本地 .env 安全注入，绝不硬编码以保护凭证安全
     GEMINI_MODEL: str = "models/gemini-flash-latest"
