@@ -51,3 +51,4 @@ media_kit/*.mp4
 media_kit/*.wav
 media_kit/*.mp3
 media_kit/audio_segments/
+media_kit/audio_segments_walkthrough/
